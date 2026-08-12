@@ -113,8 +113,8 @@ export function MerchantDashboard() {
         // Clear "NOT REGISTERED" message - user not enrolled or similarity too low
         setIdentificationError(
           result.similarity > 0 
-            ? `❌ NOT REGISTERED - Face similarity ${Math.round(result.similarity * 100)}% (minimum 80% required)`
-            : '❌ NOT REGISTERED - No matching customer found in database'
+            ? `❌ UNREGISTERED PERSON\n\nFace similarity: ${Math.round(result.similarity * 100)}%\nMinimum required: 80%\n\nThis person is not registered in the system.`
+            : '❌ UNREGISTERED PERSON\n\nNo matching customer found in database.\n\nPlease register this customer first.'
         )
         setScanning(false)
         setProcessing(false)
@@ -449,12 +449,35 @@ export function MerchantDashboard() {
             </p>
             
             {identificationError && (
-              <div className="alert alert-error" style={{marginBottom: '1rem'}}>
+              <div className="alert alert-error" style={{
+                marginBottom: '1rem',
+                background: 'linear-gradient(135deg, #ff5252 0%, #f44336 100%)',
+                color: 'white',
+                padding: '1.5rem',
+                borderRadius: '12px',
+                fontSize: '1.1rem',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                boxShadow: '0 4px 20px rgba(255, 82, 82, 0.4)',
+                animation: 'shake 0.5s',
+                whiteSpace: 'pre-line'
+              }}>
+                <div style={{fontSize: '3rem', marginBottom: '0.5rem'}}>❌</div>
                 {identificationError}
                 <button 
                   onClick={() => { setIdentificationError(null); setScanning(true); }} 
-                  className="btn btn-sm btn-outline"
-                  style={{marginTop: '0.5rem'}}
+                  className="btn btn-sm"
+                  style={{
+                    marginTop: '1rem',
+                    background: 'white',
+                    color: '#f44336',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    borderRadius: '8px'
+                  }}
                 >
                   Try Again
                 </button>
