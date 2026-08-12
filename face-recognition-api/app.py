@@ -147,6 +147,12 @@ def initialize_system():
         logging.error(f"Failed to initialize face recognition system: {e}")
         return False
 
+# Initialize system at module load time (for gunicorn workers)
+logging.info("=" * 60)
+logging.info("INITIALIZING FACE RECOGNITION API")
+logging.info("=" * 60)
+initialize_system()
+
 def decode_base64_image(base64_data):
     """
     Decode base64 image data to OpenCV format
