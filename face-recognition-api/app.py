@@ -42,19 +42,14 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-# Configure CORS for production
-CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "http://localhost:5173",  # Local development
-            "http://localhost:5000",  # Local development
-            "https://*.vercel.app",   # All Vercel deployments
-            "https://*.onrender.com"  # Render deployments
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+# Configure CORS for production - allow all origins for face recognition API
+# This is acceptable for a public API that doesn't handle sensitive authentication
+CORS(app, 
+     resources={r"/*": {"origins": "*"}},
+     supports_credentials=False,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "OPTIONS"]
+)
 
 # Model paths - use absolute paths for deployment
 yunet_model_path = os.path.join(BASE_DIR, "..", "face-recognition", "models", "face_detection_yunet_2023mar.onnx")
