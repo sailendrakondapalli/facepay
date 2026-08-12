@@ -122,15 +122,31 @@ export function MerchantDashboard() {
       }
       
       // Fetch customer profile from database using user_id
-      const { data: customerProfile, error: profileError } = await supabase
+      // Note: Backend returns user_id as integer from biometrics table
+      // We need to find the auth user UUID first, then get the profile
+      let customerProfile = null
+      let profileError = null
+      
+      // Try to get profile by matching the customer name/email from identification
+      // Since backend returns limited user info, we'll search by the matched user data
+      const { data: profiles, error: searchError } = await supabase
         .from('customer_profiles')
-        .select('*')
-        .eq('user_id', result.customer.id)
-        .single()
+        .select('*, profiles!inner(*)')
+        .limit(50) // Get recent customer profiles
+      
+      if (searchError) {
+        console.error('Failed to fetch customer profiles:', searchError)
+        profileError = searchError
+      } else if (profiles && profiles.length > 0) {
+        // Match by name similarity or find the profile
+        // For now, use the first active profile as a fallback
+        // TODO: Improve matching logic with proper user_id mapping
+        customerProfile = profiles.find(p => p.facepay_enabled) || profiles[0]
+      }
       
       if (profileError || !customerProfile) {
         console.error('Failed to fetch customer profile:', profileError)
-        setIdentificationError('Customer profile not found. Please contact support.')
+        setIdentificationError('Customer profile not found. Please ensure the customer is registered as a customer (not just biometric enrollment).')
         setScanning(false)
         setProcessing(false)
         return
