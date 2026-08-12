@@ -28,35 +28,27 @@ class DatabaseManager:
         if not all([self.supabase_url, self.supabase_key]):
             raise ValueError("Missing Supabase configuration in environment variables")
         
-        # Initialize Supabase client with error handling for version compatibility
+        # Initialize Supabase client - supabase-py 2.x uses different initialization
         try:
-            self.client: Client = create_client(self.supabase_url, self.supabase_key)
+            # Try the create_client factory function (recommended way)
+            from supabase import create_client
+            self.client = create_client(self.supabase_url, self.supabase_key)
             logging.info("Supabase client initialized successfully")
-        except TypeError as e:
-            # Handle version compatibility issues
-            logging.error(f"Supabase client initialization failed (version mismatch): {e}")
-            # Try without optional parameters
-            try:
-                from supabase import Client as SupabaseClient
-                self.client = SupabaseClient(self.supabase_url, self.supabase_key)
-                logging.info("Supabase client initialized with fallback method")
-            except Exception as e2:
-                logging.error(f"Fallback initialization also failed: {e2}")
-                raise ValueError(f"Could not initialize Supabase client: {e}, {e2}")
+        except Exception as e:
+            logging.error(f"Failed to initialize Supabase client: {e}")
+            logging.warning("Continuing without database - face recognition will work but data won't persist")
+            self.client = None
+            self.admin_client = None
+            return
         
         # Use service role for admin operations if available
         if self.supabase_service_key:
             try:
                 self.admin_client = create_client(self.supabase_url, self.supabase_service_key)
                 logging.info("Admin client initialized with service role key")
-            except TypeError:
-                try:
-                    from supabase import Client as SupabaseClient
-                    self.admin_client = SupabaseClient(self.supabase_url, self.supabase_service_key)
-                    logging.info("Admin client initialized with fallback method")
-                except:
-                    self.admin_client = self.client
-                    logging.warning("Admin client fallback to regular client")
+            except Exception as e:
+                logging.warning(f"Admin client initialization failed: {e}")
+                self.admin_client = self.client
         else:
             self.admin_client = self.client
             logging.warning("No service role key provided - using anon key for all operations")
@@ -65,6 +57,8 @@ class DatabaseManager:
     
     def test_connection(self) -> bool:
         """Test database connection"""
+        if not self.client:
+            return False
         try:
             # Try a simple query
             result = self.client.table('users').select('count').execute()
