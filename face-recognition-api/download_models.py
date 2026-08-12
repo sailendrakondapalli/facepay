@@ -34,8 +34,9 @@ def main():
     # Get base directory (face-recognition-api)
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Models directory path (relative to face-recognition-api)
-    models_dir = os.path.join(base_dir, '..', 'face-recognition', 'models')
+    # Models directory path - create it relative to face-recognition-api for deployment
+    # Check if we're in deployment (face-recognition folder might not exist)
+    models_dir = os.path.join(base_dir, 'models')
     
     # Create models directory if it doesn't exist
     os.makedirs(models_dir, exist_ok=True)

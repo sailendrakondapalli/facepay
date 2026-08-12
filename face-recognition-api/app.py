@@ -52,8 +52,17 @@ CORS(app,
 )
 
 # Model paths - use absolute paths for deployment
-yunet_model_path = os.path.join(BASE_DIR, "..", "face-recognition", "models", "face_detection_yunet_2023mar.onnx")
-sface_model_path = os.path.join(BASE_DIR, "..", "face-recognition", "models", "face_recognition_sface_2021dec.onnx")
+# Model paths - check both local dev structure and deployment structure
+# In deployment, models will be in face-recognition-api/models/
+# In local dev, models are in face-recognition/models/
+deployment_yunet = os.path.join(BASE_DIR, "models", "face_detection_yunet_2023mar.onnx")
+deployment_sface = os.path.join(BASE_DIR, "models", "face_recognition_sface_2021dec.onnx")
+local_yunet = os.path.join(BASE_DIR, "..", "face-recognition", "models", "face_detection_yunet_2023mar.onnx")
+local_sface = os.path.join(BASE_DIR, "..", "face-recognition", "models", "face_recognition_sface_2021dec.onnx")
+
+# Use deployment paths if they exist, otherwise fall back to local paths
+yunet_model_path = deployment_yunet if os.path.exists(deployment_yunet) else local_yunet
+sface_model_path = deployment_sface if os.path.exists(deployment_sface) else local_sface
 
 # Global components with thread safety
 detector = None
