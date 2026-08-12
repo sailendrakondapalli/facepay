@@ -44,46 +44,62 @@ export function BiometricCamera({
   }, [status])
 
   async function initializeCamera() {
-    try {
-      setStatus('initializing')
-      setProcessingMessage('Initializing face recognition...')
-      
-      // Initialize face models
-      await initializeFaceModels()
-      
-      setProcessingMessage('Starting camera...')
-      
-      // Start camera
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'user', 
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 30 }
+    let retryCount = 0
+    const maxRetries = 3
+    
+    while (retryCount < maxRetries) {
+      try {
+        setStatus('initializing')
+        setProcessingMessage(`Initializing face recognition...${retryCount > 0 ? ` (Retry ${retryCount}/${maxRetries})` : ''}`)
+        
+        // Initialize face models
+        await initializeFaceModels()
+        
+        setProcessingMessage('Starting camera...')
+        
+        // Start camera with retry logic
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: 'user', 
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 30 }
+          }
+        })
+        
+        setStream(mediaStream)
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream
         }
-      })
-      
-      setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
+        
+        setStatus('ready')
+        setProcessingMessage('')
+        
+        // Note: Liveness detection temporarily disabled for YuNet integration
+        // YuNet + SFace doesn't provide MediaPipe blendshapes required for current liveness system
+        // TODO: Implement YuNet-compatible liveness detection using face landmarks
+        if (requireLiveness) {
+          console.log('⚠️ Liveness detection temporarily disabled for YuNet + SFace backend')
+          console.log('ℹ️ Proceeding with face detection only')
+        }
+        
+        setStatus('detecting') // Skip liveness, go straight to detection
+        return // Success - exit retry loop
+        
+      } catch (err) {
+        console.error(`Camera initialization failed (attempt ${retryCount + 1}/${maxRetries}):`, err)
+        retryCount++
+        
+        if (retryCount >= maxRetries) {
+          // All retries failed
+          setError('Camera access denied or not available. Please check permissions and try again.')
+          setStatus('error')
+          return
+        }
+        
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
       }
-      
-      setStatus('ready')
-      setProcessingMessage('')
-      
-      // Note: Liveness detection temporarily disabled for YuNet integration
-      // YuNet + SFace doesn't provide MediaPipe blendshapes required for current liveness system
-      // TODO: Implement YuNet-compatible liveness detection using face landmarks
-      if (requireLiveness) {
-        console.log('⚠️ Liveness detection temporarily disabled for YuNet + SFace backend')
-        console.log('ℹ️ Proceeding with face detection only')
-      }
-      
-      setStatus('detecting') // Skip liveness, go straight to detection
-    } catch (err) {
-      console.error('Camera initialization failed:', err)
-      setError('Camera access denied. Please allow camera permissions and try again.')
-      setStatus('error')
     }
   }
 
@@ -97,9 +113,10 @@ export function BiometricCamera({
   function startFaceDetection() {
     if (intervalRef.current) return
     
+    // Reduced from 200ms to 500ms for better performance on free-tier Render
     intervalRef.current = setInterval(async () => {
       await processFrame()
-    }, 200) // Process every 200ms for performance
+    }, 500) // Process every 500ms for better performance
   }
 
   function stopFaceDetection() {

@@ -18,7 +18,8 @@ export function MerchantDashboard() {
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [amount, setAmount] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const [processing, setProcessing] = useState(false)
+  const [processing, setProcessing(false)
+  const [paymentLock, setPaymentLock] = useState(false) // CRITICAL: Prevent duplicate payments
   const [success, setSuccess] = useState(null)
   const [transactionNonce, setTransactionNonce] = useState(null)
   const [verificationToken, setVerificationToken] = useState(null)
@@ -86,6 +87,7 @@ export function MerchantDashboard() {
     setVerificationToken(null)
     setIdentificationError(null)
     setVerificationError(null)
+    setPaymentLock(false) // Reset payment lock
   }
 
   async function handleIdentificationCapture(biometricData) {
@@ -95,12 +97,25 @@ export function MerchantDashboard() {
     try {
       // Call identify-face Edge Function (1:N matching)
       console.log('Calling identifyFace with biometric data:', { quality: biometricData.quality, embeddingLength: biometricData.embedding?.length })
-      const result = await identifyFace(biometricData, 0.75) // Lowered from 0.85 to match YuNet+SFace performance
+      const result = await identifyFace(biometricData, 0.85) // Raised threshold to 85% for security
       console.log('Identification result:', result)
-      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.75)
+      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.85)
       
-      if (!result.success || !result.identified) {
-        setIdentificationError('No matching customer found. Customer may not be enrolled or face quality is too low.')
+      // CRITICAL: Strict validation to prevent false positives
+      if (!result.success) {
+        setIdentificationError('Face detection failed. Please try again.')
+        setScanning(false)
+        setProcessing(false)
+        return
+      }
+      
+      if (!result.identified || result.similarity < 0.85) {
+        // Clear "NOT REGISTERED" message - user not enrolled or similarity too low
+        setIdentificationError(
+          result.similarity > 0 
+            ? `❌ NOT REGISTERED - Face similarity ${Math.round(result.similarity * 100)}% (minimum 85% required)`
+            : '❌ NOT REGISTERED - No matching customer found in database'
+        )
         setScanning(false)
         setProcessing(false)
         return
@@ -164,6 +179,13 @@ export function MerchantDashboard() {
   }
 
   async function handleVerificationCapture(biometricData) {
+    // CRITICAL: Prevent duplicate payments with lock
+    if (paymentLock) {
+      console.warn('⚠️ Payment already in progress - ignoring duplicate request')
+      return
+    }
+    
+    setPaymentLock(true) // Lock payment processing
     setProcessing(true)
     setVerificationError(null)
     
@@ -179,13 +201,14 @@ export function MerchantDashboard() {
         biometricData,
         selectedCustomer.userId, // Pass user_id for YuNet matching, not customer_profile.id
         transactionNonce,
-        0.75
+        0.85 // Raised to 85% for security
       )
       console.log('Verification result:', result)
       
       if (!result.success || !result.verified) {
         setVerificationError('Face verification failed. The person does not match the identified customer.')
         setProcessing(false)
+        setPaymentLock(false) // Release lock on failure
         return
       }
       
@@ -199,6 +222,7 @@ export function MerchantDashboard() {
       console.error('Verification error:', error)
       setVerificationError(`Verification failed: ${error.message}`)
       setProcessing(false)
+      setPaymentLock(false) // Release lock on error
     }
   }
 
@@ -206,11 +230,29 @@ export function MerchantDashboard() {
     setConfirming(false)
     setTransactionNonce(null)
     setVerificationError(null)
+    setPaymentLock(false) // Release lock on cancel
   }
 
   async function processPayment(verificationToken) {
     try {
       const transactionId = `FP-TXN-${Date.now()}`
+      
+      // Check for duplicate transaction in last 60 seconds (extra safety)
+      const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString()
+      const { data: recentTxns } = await supabase
+        .from('transactions')
+        .select('transaction_id')
+        .eq('customer_id', selectedCustomer.id)
+        .eq('amount', parseFloat(amount))
+        .gte('created_at', sixtySecondsAgo)
+      
+      if (recentTxns && recentTxns.length > 0) {
+        console.warn('⚠️ Duplicate transaction detected - aborting')
+        setVerificationError('Duplicate transaction detected. Please wait before trying again.')
+        setProcessing(false)
+        setPaymentLock(false)
+        return
+      }
       
       const { error } = await supabase.from('transactions').insert({
         transaction_id: transactionId,
@@ -241,6 +283,7 @@ export function MerchantDashboard() {
       }, 4000)
     } catch (err) {
       setVerificationError(`Payment failed: ${err.message}`)
+      setPaymentLock(false) // Release lock on error
     } finally {
       setProcessing(false)
     }
