@@ -22,18 +22,41 @@ class DatabaseManager:
     def __init__(self):
         """Initialize database connection"""
         self.supabase_url = os.getenv('SUPABASE_URL')
-        self.supabase_key = os.getenv('SUPABASE_KEY')
+        self.supabase_key = os.getenv('SUPABASE_ANON_KEY') or os.getenv('SUPABASE_KEY')
         self.supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
         
         if not all([self.supabase_url, self.supabase_key]):
-            raise ValueError("Missing Supabase configuration in .env file")
+            raise ValueError("Missing Supabase configuration in environment variables")
         
-        # Initialize Supabase client
-        self.client: Client = create_client(self.supabase_url, self.supabase_key)
+        # Initialize Supabase client with error handling for version compatibility
+        try:
+            self.client: Client = create_client(self.supabase_url, self.supabase_key)
+            logging.info("Supabase client initialized successfully")
+        except TypeError as e:
+            # Handle version compatibility issues
+            logging.error(f"Supabase client initialization failed (version mismatch): {e}")
+            # Try without optional parameters
+            try:
+                from supabase import Client as SupabaseClient
+                self.client = SupabaseClient(self.supabase_url, self.supabase_key)
+                logging.info("Supabase client initialized with fallback method")
+            except Exception as e2:
+                logging.error(f"Fallback initialization also failed: {e2}")
+                raise ValueError(f"Could not initialize Supabase client: {e}, {e2}")
         
         # Use service role for admin operations if available
         if self.supabase_service_key:
-            self.admin_client = create_client(self.supabase_url, self.supabase_service_key)
+            try:
+                self.admin_client = create_client(self.supabase_url, self.supabase_service_key)
+                logging.info("Admin client initialized with service role key")
+            except TypeError:
+                try:
+                    from supabase import Client as SupabaseClient
+                    self.admin_client = SupabaseClient(self.supabase_url, self.supabase_service_key)
+                    logging.info("Admin client initialized with fallback method")
+                except:
+                    self.admin_client = self.client
+                    logging.warning("Admin client fallback to regular client")
         else:
             self.admin_client = self.client
             logging.warning("No service role key provided - using anon key for all operations")
