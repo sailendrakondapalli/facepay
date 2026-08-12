@@ -32,7 +32,10 @@ export function BiometricCamera({
 
   useEffect(() => {
     initializeCamera()
-    return () => cleanup()
+    return () => {
+      // Force cleanup on unmount
+      cleanup()
+    }
   }, [])
 
   useEffect(() => {
@@ -47,6 +50,9 @@ export function BiometricCamera({
     let retryCount = 0
     const maxRetries = 3
     
+    // Force cleanup any existing streams first
+    cleanup()
+    
     while (retryCount < maxRetries) {
       try {
         setStatus('initializing')
@@ -57,14 +63,12 @@ export function BiometricCamera({
         
         setProcessingMessage('Starting camera...')
         
+        // Try different camera configurations based on retry count
+        const videoConstraints = getVideoConstraints(retryCount)
+        
         // Start camera with retry logic
         const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: 'user', 
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 30 }
-          }
+          video: videoConstraints
         })
         
         setStream(mediaStream)
@@ -90,12 +94,17 @@ export function BiometricCamera({
         console.error(`Camera initialization failed (attempt ${retryCount + 1}/${maxRetries}):`, err)
         retryCount++
         
+        // Handle specific camera errors with user-friendly messages
+        let errorMessage = getCameraErrorMessage(err)
+        
         if (retryCount >= maxRetries) {
           // All retries failed
-          setError('Camera access denied or not available. Please check permissions and try again.')
+          setError(errorMessage)
           setStatus('error')
           return
         }
+        
+        setProcessingMessage(`${errorMessage} Retrying...`)
         
         // Wait before retry (exponential backoff)
         await new Promise(resolve => setTimeout(resolve, 1000 * retryCount))
@@ -103,10 +112,67 @@ export function BiometricCamera({
     }
   }
 
+  function getVideoConstraints(retryCount) {
+    // Try different camera settings on each retry
+    const configs = [
+      // First try: High quality
+      { 
+        facingMode: 'user', 
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 30 }
+      },
+      // Second try: Medium quality
+      { 
+        facingMode: 'user', 
+        width: { ideal: 480 },
+        height: { ideal: 360 },
+        frameRate: { ideal: 24 }
+      },
+      // Third try: Low quality (most compatible)
+      { 
+        facingMode: 'user', 
+        width: { ideal: 320 },
+        height: { ideal: 240 },
+        frameRate: { ideal: 15 }
+      }
+    ]
+    
+    return configs[retryCount] || configs[configs.length - 1]
+  }
+
+  function getCameraErrorMessage(error) {
+    switch (error.name) {
+      case 'NotReadableError':
+        return 'Camera is busy or in use by another app. Please:\n1. Close other apps using the camera (Zoom, Teams, Skype, etc.)\n2. Refresh this page\n3. Try again'
+      case 'NotAllowedError':
+        return 'Camera permission denied. Please allow camera access in your browser settings and refresh the page.'
+      case 'NotFoundError':
+        return 'No camera found. Please connect a webcam and refresh the page.'
+      case 'OverconstrainedError':
+        return 'Camera settings not supported. Trying lower quality...'
+      case 'AbortError':
+        return 'Camera access was interrupted. Please try again.'
+      case 'NotSupportedError':
+        return 'Camera not supported in this browser. Please try Chrome, Edge, or Firefox.'
+      case 'SecurityError':
+        return 'Camera access blocked by security policy. Ensure you\'re using HTTPS.'
+      default:
+        return `Camera error: ${error.message || 'Unknown error'}. Please try again.`
+    }
+  }
+
   function cleanup() {
     stopFaceDetection()
     if (stream) {
-      stream.getTracks().forEach(track => track.stop())
+      stream.getTracks().forEach(track => {
+        track.stop()
+        console.log('🔴 Camera track stopped:', track.label)
+      })
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
     }
   }
 

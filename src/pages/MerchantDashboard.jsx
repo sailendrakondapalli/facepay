@@ -18,7 +18,7 @@ export function MerchantDashboard() {
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [amount, setAmount] = useState('')
   const [confirming, setConfirming] = useState(false)
-  const [processing, setProcessing(false)
+  const [processing, setProcessing] = useState(false)
   const [paymentLock, setPaymentLock] = useState(false) // CRITICAL: Prevent duplicate payments
   const [success, setSuccess] = useState(null)
   const [transactionNonce, setTransactionNonce] = useState(null)
