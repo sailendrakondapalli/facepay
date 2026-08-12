@@ -97,9 +97,9 @@ export function MerchantDashboard() {
     try {
       // Call identify-face Edge Function (1:N matching)
       console.log('Calling identifyFace with biometric data:', { quality: biometricData.quality, embeddingLength: biometricData.embedding?.length })
-      const result = await identifyFace(biometricData, 0.85) // Raised threshold to 85% for security
+      const result = await identifyFace(biometricData, 0.80) // Lowered threshold to 80% for better recognition
       console.log('Identification result:', result)
-      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.85)
+      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.80)
       
       // CRITICAL: Strict validation to prevent false positives
       if (!result.success) {
@@ -109,11 +109,11 @@ export function MerchantDashboard() {
         return
       }
       
-      if (!result.identified || result.similarity < 0.85) {
+      if (!result.identified || result.similarity < 0.80) {
         // Clear "NOT REGISTERED" message - user not enrolled or similarity too low
         setIdentificationError(
           result.similarity > 0 
-            ? `❌ NOT REGISTERED - Face similarity ${Math.round(result.similarity * 100)}% (minimum 85% required)`
+            ? `❌ NOT REGISTERED - Face similarity ${Math.round(result.similarity * 100)}% (minimum 80% required)`
             : '❌ NOT REGISTERED - No matching customer found in database'
         )
         setScanning(false)
@@ -201,7 +201,7 @@ export function MerchantDashboard() {
         biometricData,
         selectedCustomer.userId, // Pass user_id for YuNet matching, not customer_profile.id
         transactionNonce,
-        0.85 // Raised to 85% for security
+        0.80 // Lowered to 80% for better recognition
       )
       console.log('Verification result:', result)
       
