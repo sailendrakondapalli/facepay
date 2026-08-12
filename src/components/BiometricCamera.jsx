@@ -240,6 +240,11 @@ export function BiometricCamera({
   }, [livenessChallenge])
 
   const processDetectionFrame = useCallback(async () => {
+    // Don't process if already processing or succeeded
+    if (status === 'processing' || status === 'success') {
+      return
+    }
+    
     const result = await processFaceFromVideo(videoRef.current)
     
     if (!result.success) {
@@ -251,11 +256,12 @@ export function BiometricCamera({
     setFaceDetected(true)
     setFaceQuality(result.quality)
     
-    // Auto-capture when high quality face is detected
-    if (result.quality >= FACE_CONFIG.QUALITY_THRESHOLD) {
+    // Auto-capture when high quality face is detected (ONCE)
+    if (result.quality >= FACE_CONFIG.QUALITY_THRESHOLD && status === 'detecting') {
+      stopFaceDetection() // Stop immediately to prevent multiple captures
       await handleCapture(result)
     }
-  }, [])
+  }, [status])
 
   const processFrame = useCallback(async () => {
     if (!videoRef.current || videoRef.current.readyState !== 4) return
@@ -272,6 +278,9 @@ export function BiometricCamera({
   }, [status, livenessChallenge, handleLivenessFrame, processDetectionFrame])
 
   async function handleCapture(faceResult = null) {
+    // Stop detection immediately to prevent multiple captures
+    stopFaceDetection()
+    
     try {
       setStatus('processing')
       setProcessingMessage('Processing biometric data...')
@@ -318,6 +327,7 @@ export function BiometricCamera({
       console.error('Capture failed:', error)
       setError(error.message)
       setStatus('error')
+      stopFaceDetection() // Ensure detection is stopped on error too
     }
   }
 
