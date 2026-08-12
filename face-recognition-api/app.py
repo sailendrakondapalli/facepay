@@ -70,6 +70,38 @@ recognizer = None
 db_manager = None
 process_lock = threading.Lock()  # Add thread lock for OpenCV operations
 
+def download_models_if_missing():
+    """Download models if they don't exist (for deployment)"""
+    import urllib.request
+    
+    models_to_download = []
+    
+    if not os.path.exists(yunet_model_path):
+        models_to_download.append(('YuNet', yunet_model_path, 'https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx'))
+    
+    if not os.path.exists(sface_model_path):
+        models_to_download.append(('SFace', sface_model_path, 'https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx'))
+    
+    if models_to_download:
+        logging.info(f"Downloading {len(models_to_download)} missing models...")
+        
+        # Ensure models directory exists
+        models_dir = os.path.dirname(yunet_model_path)
+        os.makedirs(models_dir, exist_ok=True)
+        logging.info(f"Models directory: {models_dir}")
+        
+        for name, path, url in models_to_download:
+            try:
+                logging.info(f"Downloading {name} from {url}...")
+                urllib.request.urlretrieve(url, path)
+                file_size = os.path.getsize(path) / (1024 * 1024)
+                logging.info(f"✓ Downloaded {name} ({file_size:.2f} MB)")
+            except Exception as e:
+                logging.error(f"✗ Failed to download {name}: {e}")
+                raise
+        
+        logging.info("All models downloaded successfully")
+
 def initialize_system():
     """Initialize all face recognition components"""
     global detector, recognizer, db_manager
@@ -79,6 +111,9 @@ def initialize_system():
         logging.info(f"Base directory: {BASE_DIR}")
         logging.info(f"YuNet model path: {yunet_model_path}")
         logging.info(f"SFace model path: {sface_model_path}")
+        
+        # Download models if missing (for deployment)
+        download_models_if_missing()
         
         # Check if models exist
         if not os.path.exists(yunet_model_path):
