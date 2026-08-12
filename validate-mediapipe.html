@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPipe FaceLandmarker Validation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .status.loading {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        .status.success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border-radius: 8px;
+            background: #000;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        canvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 MediaPipe FaceLandmarker Validation</h1>
+        <p>This tool validates that MediaPipe is working correctly with REAL face detection (not random data).</p>
+        
+        <div id="initStatus" class="status loading">
+            ⏳ Initializing MediaPipe FaceLandmarker...
+        </div>
+        
+        <div class="test-section">
+            <h2>Step 1: Test Camera Access</h2>
+            <button id="startCamera">Start Camera</button>
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="test-section">
+            <h2>Step 2: Test Face Detection</h2>
+            <button id="detectFace" disabled>Detect Face</button>
+            <div id="detectionResults" class="results" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Step 3: Test Embedding Generation</h2>
+            <button id="generateEmbedding" disabled>Generate Embedding</button>
+            <div id="embeddingResults" class="results" style="display:none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Step 4: Test Uniqueness (Two Different Faces)</h2>
+            <button id="captureFirst" disabled>Capture First Person</button>
+            <button id="captureSecond" disabled>Capture Second Person</button>
+            <button id="compareFaces" disabled>Compare Similarity</button>
+            <div id="comparisonResults" class="results" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeFaceModels, detectFaces, generateFaceEmbedding, calculateSimilarity, processFaceFromVideo } from './src/lib/face-recognition.js';
+
+        let videoStream = null;
+        let firstEmbedding = null;
+        let secondEmbedding = null;
+
+        // Initialize MediaPipe
+        async function init() {
+            const statusDiv = document.getElementById('initStatus');
+            try {
+                await initializeFaceModels();
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ MediaPipe FaceLandmarker initialized successfully!';
+                document.getElementById('startCamera').disabled = false;
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = `❌ Initialization failed: ${error.message}`;
+            }
+        }
+
+        // Start camera
+        document.getElementById('startCamera').addEventListener('click', async () => {
+            try {
+                const video = document.getElementById('video');
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', width: 640, height: 480 } 
+                });
+                video.srcObject = videoStream;
+                await video.play();
+                
+                document.getElementById('detectFace').disabled = false;
+                document.getElementById('captureFirst').disabled = false;
+            } catch (error) {
+                alert('Camera access denied: ' + error.message);
+            }
+        });
+
+        // Detect face
+        document.getElementById('detectFace').addEventListener('click', async () => {
+            const video = document.getElementById('video');
+            const resultsDiv = document.getElementById('detectionResults');
+            
+            try {
+                const faces = await detectFaces(video);
+                resultsDiv.style.display = 'block';
+                
+                if (faces.length === 0) {
+                    resultsDiv.textContent = '❌ No face detected. Please position your face in the camera view.';
+                } else if (faces.length > 1) {
+                    resultsDiv.textContent = `⚠️  Multiple faces detected (${faces.length}). Please ensure only one person is visible.`;
+                } else {
+                    const face = faces[0];
+                    resultsDiv.textContent = `✅ Face detected successfully!\n\nLandmarks: ${face.landmarks.length} points\nBounding Box: ${JSON.stringify(face.box, null, 2)}\n\nThis proves MediaPipe is detecting REAL facial features, not random data.`;
+                    document.getElementById('generateEmbedding').disabled = false;
+                }
+            } catch (error) {
+                resultsDiv.style.display = 'block';
+                resultsDiv.textContent = `❌ Detection failed: ${error.message}`;
+            }
+        });
+
+        // Generate embedding
+        document.getElementById('generateEmbedding').addEventListener('click', async () => {
+            const video = document.getElementById('video');
+            const resultsDiv = document.getElementById('embeddingResults');
+            
+            try {
+                const result = await processFaceFromVideo(video);
+                resultsDiv.style.display = 'block';
+                
+                if (!result.success) {
+                    resultsDiv.textContent = `❌ ${result.error}`;
+                } else {
+                    // Check if embedding has variation (not all zeros or all same values)
+                    const embedding = result.embedding;
+                    const uniqueValues = new Set(embedding.slice(0, 50)).size; // Check first 50 values
+                    const avgValue = embedding.reduce((a, b) => a + b, 0) / embedding.length;
+                    const variance = embedding.reduce((sum, val) => sum + Math.pow(val - avgValue, 2), 0) / embedding.length;
+                    
+                    resultsDiv.textContent = `✅ Embedding generated successfully!\n\nDimensions: ${embedding.length}\nQuality Score: ${result.quality.toFixed(4)}\n\nEmbedding Statistics:\n- Unique values in first 50: ${uniqueValues}\n- Average value: ${avgValue.toFixed(6)}\n- Variance: ${variance.toFixed(6)}\n\nFirst 10 values: [${embedding.slice(0, 10).map(v => v.toFixed(4)).join(', ')}]\nLast 10 values: [${embedding.slice(-10).map(v => v.toFixed(4)).join(', ')}]\n\n${uniqueValues > 10 && variance > 0.001 ? '✅ Embedding shows good variation - using REAL facial features!' : '⚠️  Low variation detected - may still be using placeholder data'}`;
+                }
+            } catch (error) {
+                resultsDiv.style.display = 'block';
+                resultsDiv.textContent = `❌ Embedding generation failed: ${error.message}`;
+            }
+        });
+
+        // Capture first person
+        document.getElementById('captureFirst').addEventListener('click', async () => {
+            const video = document.getElementById('video');
+            const resultsDiv = document.getElementById('comparisonResults');
+            
+            try {
+                const result = await processFaceFromVideo(video);
+                if (!result.success) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+                
+                firstEmbedding = result.embedding;
+                resultsDiv.style.display = 'block';
+                resultsDiv.textContent = `✅ First person captured!\nQuality: ${result.quality.toFixed(4)}\n\nNow capture a DIFFERENT person...`;
+                document.getElementById('captureSecond').disabled = false;
+            } catch (error) {
+                alert(`Capture failed: ${error.message}`);
+            }
+        });
+
+        // Capture second person
+        document.getElementById('captureSecond').addEventListener('click', async () => {
+            const video = document.getElementById('video');
+            const resultsDiv = document.getElementById('comparisonResults');
+            
+            try {
+                const result = await processFaceFromVideo(video);
+                if (!result.success) {
+                    alert(`Error: ${result.error}`);
+                    return;
+                }
+                
+                secondEmbedding = result.embedding;
+                resultsDiv.textContent = `✅ First person captured! Quality: ${result.quality.toFixed(4)}\n✅ Second person captured! Quality: ${result.quality.toFixed(4)}\n\nReady to compare...`;
+                document.getElementById('compareFaces').disabled = false;
+            } catch (error) {
+                alert(`Capture failed: ${error.message}`);
+            }
+        });
+
+        // Compare faces
+        document.getElementById('compareFaces').addEventListener('click', () => {
+            const resultsDiv = document.getElementById('comparisonResults');
+            
+            if (!firstEmbedding || !secondEmbedding) {
+                alert('Please capture both persons first');
+                return;
+            }
+            
+            const similarity = calculateSimilarity(firstEmbedding, secondEmbedding);
+            const similarityPercent = (similarity * 100).toFixed(2);
+            
+            resultsDiv.textContent = `
+🔍 SIMILARITY TEST RESULTS
+${'='.repeat(50)}
+
+Person 1 vs Person 2 Similarity: ${similarityPercent}%
+
+EXPECTED BEHAVIOR:
+- Different people: <70% similarity ✅
+- Same person: >85% similarity ✅
+
+RESULT: ${similarity < 0.70 ? '✅ PASS - Different people correctly identified as different!' : similarity > 0.85 ? '⚠️  WARNING - Different people showing high similarity (FALSE POSITIVE BUG)' : '⚠️  UNCLEAR - Similarity in gray area (70-85%)'}
+
+${similarity > 0.85 ? '\n❌ FALSE POSITIVE DETECTED!\nThis means the system is still using bad embeddings or not detecting real facial differences.\n\nACTION REQUIRED:\n1. Run clear-bad-embeddings.sql\n2. Clear browser cache\n3. Re-test' : '\n✅ MediaPipe is working correctly!\nThe system can distinguish between different people.'}
+            `;
+        });
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

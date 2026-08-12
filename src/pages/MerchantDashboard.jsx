@@ -1,0 +1,484 @@
+import { useState, useEffect } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
+import { BiometricCamera } from '../components/BiometricCamera'
+import { identifyFace, verifyFace, generateTransactionNonce } from '../lib/biometric-api'
+import './MerchantDashboard.css'
+
+export function MerchantDashboard() {
+  const { user } = useAuth()
+  const [merchantProfile, setMerchantProfile] = useState(null)
+  const [transactions, setTransactions] = useState([])
+  const [todaySales, setTodaySales] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  // Terminal state
+  const [terminalActive, setTerminalActive] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [amount, setAmount] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [processing, setProcessing] = useState(false)
+  const [success, setSuccess] = useState(null)
+  const [transactionNonce, setTransactionNonce] = useState(null)
+  const [verificationToken, setVerificationToken] = useState(null)
+  const [identificationError, setIdentificationError] = useState(null)
+  const [verificationError, setVerificationError] = useState(null)
+
+  useEffect(() => {
+    if (user) fetchData()
+  }, [user])
+
+  async function fetchData() {
+    setLoading(true)
+    try {
+      // Get merchant profile
+      const { data: merchProfile } = await supabase
+        .from('merchant_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
+      setMerchantProfile(merchProfile)
+
+      if (merchProfile) {
+        // Get transactions (simple query)
+        const { data: txns } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('merchant_id', merchProfile.id)
+          .order('created_at', { ascending: false })
+          .limit(20)
+        setTransactions(txns || [])
+
+        const today = new Date().toISOString().split('T')[0]
+        const todayTxns = (txns || []).filter(t => t.created_at.startsWith(today))
+        const total = todayTxns.reduce((sum, t) => sum + parseFloat(t.amount), 0)
+        setTodaySales(total)
+      }
+    } catch (err) {
+      console.error('Fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openTerminal() {
+    setTerminalActive(true)
+    setScanning(true)
+    setSelectedCustomer(null)
+    setAmount('')
+    setConfirming(false)
+    setSuccess(null)
+    setTransactionNonce(null)
+    setVerificationToken(null)
+    setIdentificationError(null)
+    setVerificationError(null)
+  }
+
+  function closeTerminal() {
+    setTerminalActive(false)
+    setScanning(false)
+    setSelectedCustomer(null)
+    setAmount('')
+    setConfirming(false)
+    setSuccess(null)
+    setTransactionNonce(null)
+    setVerificationToken(null)
+    setIdentificationError(null)
+    setVerificationError(null)
+  }
+
+  async function handleIdentificationCapture(biometricData) {
+    setProcessing(true)
+    setIdentificationError(null)
+    
+    try {
+      // Call identify-face Edge Function (1:N matching)
+      console.log('Calling identifyFace with biometric data:', { quality: biometricData.quality, embeddingLength: biometricData.embedding?.length })
+      const result = await identifyFace(biometricData, 0.75) // Lowered from 0.85 to match YuNet+SFace performance
+      console.log('Identification result:', result)
+      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.75)
+      
+      if (!result.success || !result.identified) {
+        setIdentificationError('No matching customer found. Customer may not be enrolled or face quality is too low.')
+        setScanning(false)
+        setProcessing(false)
+        return
+      }
+      
+      // Fetch customer profile from database using user_id
+      const { data: customerProfile, error: profileError } = await supabase
+        .from('customer_profiles')
+        .select('*')
+        .eq('user_id', result.customer.id)
+        .single()
+      
+      if (profileError || !customerProfile) {
+        console.error('Failed to fetch customer profile:', profileError)
+        setIdentificationError('Customer profile not found. Please contact support.')
+        setScanning(false)
+        setProcessing(false)
+        return
+      }
+      
+      // Customer identified successfully
+      setSelectedCustomer({
+        id: customerProfile.id, // Use customer_profile.id for transactions
+        userId: result.customer.id, // Keep user_id for reference
+        facepayId: customerProfile.facepay_id || result.customer.id,
+        fullName: result.customer.name,
+        email: result.customer.email || 'N/A',
+        facepayEnabled: customerProfile.facepay_enabled,
+        transactionLimit: customerProfile.transaction_limit || 1000,
+        similarity: result.similarity
+      })
+      
+      setScanning(false)
+      setProcessing(false)
+      
+    } catch (error) {
+      console.error('Identification error:', error)
+      setIdentificationError(`Identification failed: ${error.message}`)
+      setScanning(false)
+      setProcessing(false)
+    }
+  }
+
+  function handleIdentificationCancel() {
+    setScanning(false)
+    closeTerminal()
+  }
+
+  function continueToConfirm() {
+    if (!amount || parseFloat(amount) <= 0) return
+    const parsedAmount = parseFloat(amount)
+    if (parsedAmount > selectedCustomer.transactionLimit) {
+      alert(`Amount exceeds customer's transaction limit of ₹${selectedCustomer.transactionLimit}`)
+      return
+    }
+    
+    // Generate transaction nonce for verification
+    const nonce = generateTransactionNonce()
+    setTransactionNonce(nonce)
+    setConfirming(true)
+  }
+
+  async function handleVerificationCapture(biometricData) {
+    setProcessing(true)
+    setVerificationError(null)
+    
+    try {
+      // Call verify-face Edge Function (1:1 verification)
+      console.log('Calling verifyFace with:', { 
+        userId: selectedCustomer.userId,
+        customerProfileId: selectedCustomer.id, 
+        transactionNonce, 
+        quality: biometricData.quality 
+      })
+      const result = await verifyFace(
+        biometricData,
+        selectedCustomer.userId, // Pass user_id for YuNet matching, not customer_profile.id
+        transactionNonce,
+        0.75
+      )
+      console.log('Verification result:', result)
+      
+      if (!result.success || !result.verified) {
+        setVerificationError('Face verification failed. The person does not match the identified customer.')
+        setProcessing(false)
+        return
+      }
+      
+      // Verification successful - store token
+      setVerificationToken(result.verificationToken)
+      
+      // Process payment
+      await processPayment(result.verificationToken)
+      
+    } catch (error) {
+      console.error('Verification error:', error)
+      setVerificationError(`Verification failed: ${error.message}`)
+      setProcessing(false)
+    }
+  }
+
+  function handleVerificationCancel() {
+    setConfirming(false)
+    setTransactionNonce(null)
+    setVerificationError(null)
+  }
+
+  async function processPayment(verificationToken) {
+    try {
+      const transactionId = `FP-TXN-${Date.now()}`
+      
+      const { error } = await supabase.from('transactions').insert({
+        transaction_id: transactionId,
+        customer_id: selectedCustomer.id,
+        merchant_id: merchantProfile.id,
+        amount: parseFloat(amount),
+        currency: 'INR',
+        status: 'SUCCESS',
+        authentication_method: 'BIOMETRIC_FACEPAY',
+        biometric_similarity: selectedCustomer.similarity,
+        transaction_nonce: transactionNonce,
+        verification_timestamp: new Date().toISOString()
+      })
+
+      if (error) throw error
+
+      setSuccess({
+        transactionId,
+        amount: parseFloat(amount),
+        customerName: selectedCustomer.fullName,
+        facepayId: selectedCustomer.facepayId,
+        verificationToken
+      })
+
+      setTimeout(() => {
+        fetchData()
+        closeTerminal()
+      }, 4000)
+    } catch (err) {
+      setVerificationError(`Payment failed: ${err.message}`)
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner spinner-lg" />
+        <p>Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  if (terminalActive) {
+    return (
+      <div className="merchant-terminal">
+        {success ? (
+          <div className="terminal-success animate-scale">
+            <div className="success-icon">✓</div>
+            <h2>Payment Successful</h2>
+            <div className="success-amount">₹{success.amount.toLocaleString('en-IN')}</div>
+            <div className="success-details">
+              <p><strong>Paid to:</strong> {merchantProfile?.business_name}</p>
+              <p><strong>Customer:</strong> {success.customerName}</p>
+              <p><strong>FacePay ID:</strong> {success.facepayId}</p>
+              <p><strong>Transaction ID:</strong> {success.transactionId}</p>
+              <p className="text-muted" style={{fontSize: '0.8rem', marginTop: '1rem'}}>
+                ✓ Biometric verification completed
+              </p>
+            </div>
+          </div>
+        ) : confirming ? (
+          <div className="terminal-confirm animate-in">
+            <h2>Second Biometric Verification</h2>
+            <p className="text-muted">Verify customer identity to authorize payment</p>
+            
+            <div className="confirmation-details">
+              <div className="detail-row">
+                <span>Customer:</span>
+                <span><strong>{selectedCustomer.fullName}</strong></span>
+              </div>
+              <div className="detail-row">
+                <span>Amount:</span>
+                <span><strong>₹{parseFloat(amount).toLocaleString('en-IN')}</strong></span>
+              </div>
+              <div className="detail-row">
+                <span>Merchant:</span>
+                <span>{merchantProfile?.business_name}</span>
+              </div>
+            </div>
+            
+            {verificationError && (
+              <div className="alert alert-error" style={{marginBottom: '1rem'}}>
+                {verificationError}
+              </div>
+            )}
+            
+            <BiometricCamera
+              onSuccess={handleVerificationCapture}
+              onCancel={handleVerificationCancel}
+              mode="verify"
+              requireLiveness={true}
+              showInstructions={true}
+            />
+          </div>
+        ) : selectedCustomer && amount ? (
+          <div className="terminal-review animate-in">
+            <h2>Confirm Payment</h2>
+            <div className="review-details">
+              <div className="review-row">
+                <span className="review-label">Customer</span>
+                <span className="review-value">{selectedCustomer.fullName}</span>
+              </div>
+              <div className="review-row">
+                <span className="review-label">FacePay ID</span>
+                <span className="review-value mono-text">{selectedCustomer.facepayId}</span>
+              </div>
+              <div className="review-row">
+                <span className="review-label">Identity Match</span>
+                <span className="review-value">
+                  <span className="badge badge-success">
+                    {Math.round(selectedCustomer.similarity * 100)}% similarity
+                  </span>
+                </span>
+              </div>
+              <div className="review-row">
+                <span className="review-label">Merchant</span>
+                <span className="review-value">{merchantProfile?.business_name}</span>
+              </div>
+              <div className="review-row review-row-highlight">
+                <span className="review-label">Amount</span>
+                <span className="review-value review-amount">₹{parseFloat(amount).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="review-row">
+                <span className="review-label">Payment Method</span>
+                <span className="review-value"><span className="badge badge-success">FacePay Biometric</span></span>
+              </div>
+            </div>
+            <button onClick={continueToConfirm} className="btn btn-accent btn-full btn-lg" disabled={processing}>
+              {processing ? <span className="spinner" /> : 'Proceed to Verification'}
+            </button>
+            <button onClick={() => { setAmount(''); setConfirming(false); }} className="btn btn-ghost btn-full">
+              Change Amount
+            </button>
+          </div>
+        ) : selectedCustomer ? (
+          <div className="terminal-amount animate-in">
+            <div className="customer-verified">
+              <div className="verified-icon">✓</div>
+              <h3>Customer Verified</h3>
+              <p><strong>{selectedCustomer.fullName}</strong></p>
+              <p className="mono-text">{selectedCustomer.facepayId}</p>
+              <p className="text-muted" style={{fontSize: '0.9rem', marginTop: '0.5rem'}}>
+                Identity Match: {Math.round(selectedCustomer.similarity * 100)}%
+              </p>
+              <span className={`badge ${selectedCustomer.facepayEnabled ? 'badge-success' : 'badge-danger'}`}>
+                {selectedCustomer.facepayEnabled ? 'ACTIVE' : 'DISABLED'}
+              </span>
+            </div>
+            <div className="amount-input">
+              <label className="form-label">Enter Amount</label>
+              <div className="currency-input">
+                <span className="currency-symbol">₹</span>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <span className="form-hint">Limit: ₹{selectedCustomer.transactionLimit.toLocaleString('en-IN')}</span>
+            </div>
+            <button onClick={continueToConfirm} className="btn btn-primary btn-full btn-lg" disabled={!amount || parseFloat(amount) <= 0}>
+              Continue
+            </button>
+            <button onClick={() => { setSelectedCustomer(null); setScanning(true); }} className="btn btn-ghost btn-full">
+              Scan Different Customer
+            </button>
+          </div>
+        ) : scanning ? (
+          <div className="terminal-scan animate-in">
+            <h2>Scan Customer Face</h2>
+            <p className="text-muted" style={{marginBottom: '1.5rem'}}>
+              Real biometric face identification (1:N matching)
+            </p>
+            
+            {identificationError && (
+              <div className="alert alert-error" style={{marginBottom: '1rem'}}>
+                {identificationError}
+                <button 
+                  onClick={() => { setIdentificationError(null); setScanning(true); }} 
+                  className="btn btn-sm btn-outline"
+                  style={{marginTop: '0.5rem'}}
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+            
+            {!identificationError && (
+              <BiometricCamera
+                onSuccess={handleIdentificationCapture}
+                onCancel={handleIdentificationCancel}
+                mode="identify"
+                requireLiveness={true}
+                showInstructions={true}
+              />
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="merchant-dashboard">
+      <div className="dashboard-container">
+        <div className="dashboard-welcome">
+          <h1>Merchant Terminal</h1>
+          <p className="text-muted">{merchantProfile?.business_name}</p>
+        </div>
+
+        <button onClick={openTerminal} className="btn-scan-customer">
+          SCAN CUSTOMER
+        </button>
+
+        <div className="dashboard-cards">
+          <div className="dash-card">
+            <div className="dash-card-label">Today's Sales</div>
+            <div className="dash-card-value">₹{todaySales.toLocaleString('en-IN')}</div>
+            <div className="dash-card-hint">{new Date().toLocaleDateString('en-IN')}</div>
+          </div>
+          <div className="dash-card">
+            <div className="dash-card-label">Merchant ID</div>
+            <div className="dash-card-value dash-card-mono">{merchantProfile?.merchant_id}</div>
+          </div>
+          <div className="dash-card">
+            <div className="dash-card-label">Total Transactions</div>
+            <div className="dash-card-value">{transactions.length}</div>
+          </div>
+        </div>
+
+        <div className="dashboard-section">
+          <h2>Transaction History</h2>
+          {transactions.length === 0 ? (
+            <div className="empty-state">
+              <p>No transactions yet</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Transaction ID</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map(txn => (
+                    <tr key={txn.id}>
+                      <td>Customer</td>
+                      <td className="mono-text">{txn.transaction_id?.split('-')[2] || '—'}</td>
+                      <td className="amount">₹{parseFloat(txn.amount).toLocaleString('en-IN')}</td>
+                      <td>{new Date(txn.created_at).toLocaleString('en-IN')}</td>
+                      <td><span className="badge badge-demo">{txn.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

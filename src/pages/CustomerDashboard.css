@@ -1,0 +1,124 @@
+.customer-dashboard {
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dashboard-welcome {
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-welcome h1 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--text), var(--text-muted));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.dash-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  transition: var(--transition);
+}
+
+.dash-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+}
+
+.dash-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.dash-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dash-card-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.dash-card-mono {
+  font-family: 'Courier New', monospace;
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
+.dash-card-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.dashboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dashboard-section h2 {
+  font-size: 1.5rem;
+  color: var(--text);
+}
+
+.amount {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.mono-text {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.setting-item:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-value {
+  font-weight: 600;
+  color: var(--text);
+}
+
+@media (max-width: 768px) {
+  .dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+  .table-wrap {
+    overflow-x: auto;
+  }
+}
