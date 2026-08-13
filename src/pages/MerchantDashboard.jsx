@@ -411,22 +411,6 @@ export function MerchantDashboard() {
       setProcessing(false)
     }
   }
-        
-      } catch (webauthnError) {
-        console.error('WebAuthn authorization failed:', webauthnError)
-        setVerificationError(`Device biometric authorization failed: ${webauthnError.message}`)
-        setProcessing(false)
-        setPaymentLock(false)
-        return
-      }
-      
-    } catch (error) {
-      console.error('Verification error:', error)
-      setVerificationError(`Verification failed: ${error.message}`)
-      setProcessing(false)
-      setPaymentLock(false) // Release lock on error
-    }
-  }
 
   function handleVerificationCancel() {
     setConfirming(false)
