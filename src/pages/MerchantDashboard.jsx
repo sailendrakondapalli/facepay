@@ -281,6 +281,7 @@ export function MerchantDashboard() {
             console.log('WebAuthn failed, falling back to face-only payment:', webauthnError.message)
             setVerificationError('Completing payment with face verification...')
             await processPayment(result.verificationToken, null, 'FACE_ONLY')
+          }
         } else {
           // Customer doesn't have WebAuthn - use face-only
           console.log('✅ Face-only verification (no device biometric registered)')
@@ -318,97 +319,6 @@ export function MerchantDashboard() {
         '• Email address\n' +
         '• OR FacePay ID\n' +
         '\nThis will be verified with their device biometric.'
-      )
-      
-      if (!customerInput) {
-        setProcessing(false)
-        return
-      }
-      
-      // Look up customer by email or FacePay ID
-      let customerProfile = null
-      
-      // Try to find customer by email first
-      const { data: profileByEmail } = await supabase
-        .from('profiles')
-        .select('*, customer_profiles!inner(*)')
-        .eq('email', customerInput.trim().toLowerCase())
-        .single()
-        
-      if (profileByEmail) {
-        customerProfile = {
-          id: profileByEmail.customer_profiles.id,
-          userId: profileByEmail.id,
-          facepayId: profileByEmail.customer_profiles.facepay_id,
-          fullName: profileByEmail.full_name,
-          email: profileByEmail.email,
-          facepayEnabled: profileByEmail.customer_profiles.facepay_enabled,
-          transactionLimit: profileByEmail.customer_profiles.transaction_limit || 1000
-        }
-      } else {
-        // Try by FacePay ID
-        const { data: profileByFacePayId } = await supabase
-          .from('customer_profiles')
-          .select('*, profiles!inner(*)')
-          .eq('facepay_id', customerInput.trim())
-          .single()
-          
-        if (profileByFacePayId) {
-          customerProfile = {
-            id: profileByFacePayId.id,
-            userId: profileByFacePayId.profiles.id,
-            facepayId: profileByFacePayId.facepay_id,
-            fullName: profileByFacePayId.profiles.full_name,
-            email: profileByFacePayId.profiles.email,
-            facepayEnabled: profileByFacePayId.facepay_enabled,
-            transactionLimit: profileByFacePayId.transaction_limit || 1000
-          }
-        }
-      }
-      
-      if (!customerProfile) {
-        setVerificationError('Customer not found. Please check the email or FacePay ID.')
-        setProcessing(false)
-        return
-      }
-      
-      if (!customerProfile.facepayEnabled) {
-        setVerificationError('FacePay is disabled for this customer.')
-        setProcessing(false)
-        return
-      }
-      
-      // Set customer and prompt for device biometric
-      setSelectedCustomer(customerProfile)
-      setVerificationError('Customer identified. Please authorize payment with device biometric...')
-      
-      // Prompt for WebAuthn authentication
-      const webauthnResult = await authenticateWebAuthn(customerProfile.userId, {
-        amount: parseFloat(amount) || 0,
-        merchantId: merchantProfile.id,
-        timestamp: new Date().toISOString()
-      })
-      
-      if (!webauthnResult.verified) {
-        setVerificationError('Device biometric authorization failed.')
-        setProcessing(false)
-        return
-      }
-      
-      console.log(`✅ Device biometric verified: ${webauthnResult.authenticatorName}`)
-      
-      // Generate verification token and process payment
-      const nonce = generateTransactionNonce()
-      setTransactionNonce(nonce)
-      setVerificationToken('device-biometric-token')
-      
-      await processPayment('device-biometric-token', webauthnResult.authorizationToken, 'DEVICE_BIOMETRIC')
-      
-    } catch (error) {
-      console.error('Device biometric error:', error)
-      setVerificationError(`Device biometric failed: ${error.message}`)
-      setProcessing(false)
-    }
       )
       
       if (!customerInput) {
@@ -883,6 +793,19 @@ export function MerchantDashboard() {
               <span>Fingerprint / Windows Hello / Touch ID</span>
             </div>
           </button>
+        </div>
+        
+        {/* Debug: Ensure buttons are visible */}
+        <div style={{textAlign: 'center', margin: '2rem 0', padding: '1rem', background: '#f0f0f0', borderRadius: '8px'}}>
+          <h3>Payment Terminal Options</h3>
+          <p>Two payment methods should be visible above:</p>
+          <ul style={{textAlign: 'left', display: 'inline-block'}}>
+            <li>👤 SCAN CUSTOMER FACE - Face recognition identification</li>
+            <li>🔐 DEVICE BIOMETRIC - Fingerprint / Windows Hello / Touch ID</li>
+          </ul>
+          <p style={{fontSize: '0.9rem', color: '#666', marginTop: '1rem'}}>
+            If you don't see the buttons above, try refreshing the page (Ctrl+F5)
+          </p>
         </div>
 
         <div className="dashboard-cards">
