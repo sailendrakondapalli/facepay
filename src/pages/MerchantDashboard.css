@@ -311,6 +311,16 @@
   animation: shake 0.5s;
 }
 
+/* Info alert styling */
+.alert-info {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  color: #1565c0;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #2196f3;
+  box-shadow: 0 2px 10px rgba(33, 150, 243, 0.2);
+}
+
 /* Payment Methods Selection */
 .payment-methods {
   display: grid;
