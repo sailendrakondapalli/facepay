@@ -231,8 +231,52 @@ export function MerchantDashboard() {
       // Verification successful - store token
       setVerificationToken(result.verificationToken)
       
-      // Process payment
-      await processPayment(result.verificationToken)
+      // NEW: Add WebAuthn authorization step
+      console.log('Face verified! Now prompting for device biometric authorization...')
+      
+      try {
+        // Import WebAuthn function
+        const { authenticateWebAuthn, hasWebAuthnCredential } = await import('../lib/webauthn.js')
+        
+        // Check if customer has registered WebAuthn
+        const hasWebAuthn = await hasWebAuthnCredential(selectedCustomer.userId)
+        
+        if (!hasWebAuthn) {
+          setVerificationError('Customer has not registered device biometric authentication. Payment cannot be completed.')
+          setProcessing(false)
+          setPaymentLock(false)
+          return
+        }
+        
+        // Prompt for WebAuthn authorization
+        console.log('Prompting for device biometric authorization...')
+        setVerificationError('Please authorize payment with your device biometric (Windows Hello/Touch ID/fingerprint)...')
+        
+        const webauthnResult = await authenticateWebAuthn(selectedCustomer.userId, {
+          amount: parseFloat(amount),
+          merchantId: merchantProfile.id,
+          timestamp: new Date().toISOString()
+        })
+        
+        if (!webauthnResult.verified) {
+          setVerificationError(`Device biometric authorization failed. Payment cannot be completed.`)
+          setProcessing(false)
+          setPaymentLock(false)
+          return
+        }
+        
+        console.log(`✅ Both factors verified! Face: ✓ Device Biometric (${webauthnResult.authenticatorName}): ✓`)
+        
+        // Process payment with dual authorization
+        await processPayment(result.verificationToken, webauthnResult.authorizationToken)
+        
+      } catch (webauthnError) {
+        console.error('WebAuthn authorization failed:', webauthnError)
+        setVerificationError(`Device biometric authorization failed: ${webauthnError.message}`)
+        setProcessing(false)
+        setPaymentLock(false)
+        return
+      }
       
     } catch (error) {
       console.error('Verification error:', error)
@@ -249,7 +293,7 @@ export function MerchantDashboard() {
     setPaymentLock(false) // Release lock on cancel
   }
 
-  async function processPayment(verificationToken) {
+  async function processPayment(verificationToken, webauthnToken = null) {
     try {
       const transactionId = `FP-TXN-${Date.now()}`
       
@@ -270,6 +314,12 @@ export function MerchantDashboard() {
         return
       }
       
+      // Determine authentication method based on what was used
+      let authMethod = 'BIOMETRIC_FACEPAY'
+      if (webauthnToken) {
+        authMethod = 'DUAL_BIOMETRIC_FACEPAY_WEBAUTHN'
+      }
+      
       const { error } = await supabase.from('transactions').insert({
         transaction_id: transactionId,
         customer_id: selectedCustomer.id,
@@ -277,10 +327,11 @@ export function MerchantDashboard() {
         amount: parseFloat(amount),
         currency: 'INR',
         status: 'SUCCESS',
-        authentication_method: 'BIOMETRIC_FACEPAY',
+        authentication_method: authMethod,
         biometric_similarity: selectedCustomer.similarity,
         transaction_nonce: transactionNonce,
-        verification_timestamp: new Date().toISOString()
+        verification_timestamp: new Date().toISOString(),
+        webauthn_verified: !!webauthnToken
       })
 
       if (error) throw error
@@ -290,7 +341,9 @@ export function MerchantDashboard() {
         amount: parseFloat(amount),
         customerName: selectedCustomer.fullName,
         facepayId: selectedCustomer.facepayId,
-        verificationToken
+        verificationToken,
+        webauthnToken,
+        authMethod
       })
 
       setTimeout(() => {
@@ -328,7 +381,14 @@ export function MerchantDashboard() {
               <p><strong>FacePay ID:</strong> {success.facepayId}</p>
               <p><strong>Transaction ID:</strong> {success.transactionId}</p>
               <p className="text-muted" style={{fontSize: '0.8rem', marginTop: '1rem'}}>
-                ✓ Biometric verification completed
+                {success.webauthnToken ? (
+                  <>
+                    ✓ Dual-factor biometric verification completed<br/>
+                    ✓ Face recognition + {success.authMethod?.includes('WEBAUTHN') ? 'Device biometric' : 'Face verification'}
+                  </>
+                ) : (
+                  '✓ Biometric verification completed'
+                )}
               </p>
             </div>
           </div>
