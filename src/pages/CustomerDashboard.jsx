@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { WebAuthnSetup } from '../components/WebAuthnSetup'
 import './CustomerDashboard.css'
 
 export function CustomerDashboard() {
@@ -186,6 +187,18 @@ export function CustomerDashboard() {
                 <span className="badge badge-success">ACTIVE</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="dashboard-section">
+          <h2>🔐 Multi-Factor Biometric Security</h2>
+          <div className="card-elevated">
+            <WebAuthnSetup 
+              userId={user?.id} 
+              onComplete={(result) => {
+                console.log('WebAuthn registered:', result)
+              }}
+            />
           </div>
         </div>
       </div>
