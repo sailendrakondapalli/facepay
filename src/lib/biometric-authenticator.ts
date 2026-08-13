@@ -440,8 +440,8 @@ export class EnhancedBiometricAuthenticator implements BiometricAuthenticator {
 
   constructor(supabaseUrl?: string, supabaseKey?: string, faceApiUrl?: string) {
     this.supabase = createClient(
-      supabaseUrl || process.env.VITE_SUPABASE_URL || '',
-      supabaseKey || process.env.VITE_SUPABASE_ANON_KEY || ''
+      supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '',
+      supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
     )
     this.faceClient = new FaceRecognitionClient(faceApiUrl)
     this.webauthnHandler = new WebAuthnHandler()

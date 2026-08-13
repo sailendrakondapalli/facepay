@@ -31,8 +31,8 @@ export class TransactionAuthorizationEngine implements ITransactionAuthorization
     biometricAuth?: EnhancedBiometricAuthenticator
   ) {
     this.supabase = createClient(
-      supabaseUrl || process.env.VITE_SUPABASE_URL || '',
-      supabaseKey || process.env.VITE_SUPABASE_ANON_KEY || ''
+      supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '',
+      supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
     )
     this.securityManager = securityManager || new CustomerSecuritySettingsManager()
     this.biometricAuth = biometricAuth || new EnhancedBiometricAuthenticator()

@@ -18,8 +18,8 @@ export class CustomerSecuritySettingsManager implements SecuritySettingsManager 
 
   constructor(supabaseUrl?: string, supabaseKey?: string) {
     this.supabase = createClient(
-      supabaseUrl || process.env.VITE_SUPABASE_URL || '',
-      supabaseKey || process.env.VITE_SUPABASE_ANON_KEY || ''
+      supabaseUrl || import.meta.env.VITE_SUPABASE_URL || '',
+      supabaseKey || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
     )
   }
 

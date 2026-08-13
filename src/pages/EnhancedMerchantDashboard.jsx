@@ -3,7 +3,7 @@
 // Multi-platform biometric payment processing with security validation
 
 import React, { useState, useEffect, useRef } from 'react'
-import BiometricCamera from '../components/BiometricCamera'
+import { BiometricCamera } from '../components/BiometricCamera'
 import { securitySettingsManager } from '../lib/security-settings-manager'
 import { biometricAuthenticator } from '../lib/biometric-authenticator'
 import { transactionAuthorizationEngine } from '../lib/transaction-authorization-engine'
@@ -367,31 +367,31 @@ const EnhancedMerchantDashboard = () => {
   // RENDER METHODS
   // ============================================================================
   const renderCustomerLookup = () => (
-    <div className=\"lookup-container\">
+    <div className="lookup-container">
       <h2>💳 Enhanced FacePay Terminal</h2>
       
-      <div className=\"form-group\">
-        <label htmlFor=\"customerEmail\">Customer Email</label>
+      <div className="form-group">
+        <label htmlFor="customerEmail">Customer Email</label>
         <input
-          type=\"email\"
-          id=\"customerEmail\"
+          type="email"
+          id="customerEmail"
           value={customerEmail}
           onChange={(e) => setCustomerEmail(e.target.value)}
-          placeholder=\"customer@example.com\"
+          placeholder="customer@example.com"
           disabled={loading}
         />
       </div>
 
-      <div className=\"form-group\">
-        <label htmlFor=\"amount\">Payment Amount (₹)</label>
+      <div className="form-group">
+        <label htmlFor="amount">Payment Amount (₹)</label>
         <input
-          type=\"number\"
-          id=\"amount\"
+          type="number"
+          id="amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          placeholder=\"0.00\"
-          min=\"0\"
-          step=\"0.01\"
+          placeholder="0.00"
+          min="0"
+          step="0.01"
           disabled={loading}
         />
       </div>
@@ -399,16 +399,16 @@ const EnhancedMerchantDashboard = () => {
       <button
         onClick={handleCustomerLookup}
         disabled={loading}
-        className=\"primary-button\"
+        className="primary-button"
       >
         {loading ? 'Looking up...' : 'Lookup Customer & Validate Payment'}
       </button>
 
-      <div className=\"capabilities-info\">
+      <div className="capabilities-info">
         <h4>Available Authentication Methods:</h4>
-        <div className=\"capabilities-list\">
+        <div className="capabilities-list">
           {availableCapabilities.map(capability => (
-            <span key={capability} className=\"capability-badge\">
+            <span key={capability} className="capability-badge">
               {capability.replace('-', ' ')}
             </span>
           ))}
@@ -421,33 +421,33 @@ const EnhancedMerchantDashboard = () => {
     const availableMethods = getAvailableAuthMethods()
 
     return (
-      <div className=\"auth-selection-container\">
-        <div className=\"customer-info\">
+      <div className="auth-selection-container">
+        <div className="customer-info">
           <h3>Customer: {customerData?.name || customerData?.email}</h3>
           <p>Payment Amount: {formatCurrency(paymentSession?.amount)}</p>
           {authMethods?.requireDualFactor && (
-            <p className=\"dual-factor-notice\">⚠️ Dual-factor authentication required</p>
+            <p className="dual-factor-notice">⚠️ Dual-factor authentication required</p>
           )}
         </div>
 
         <h3>Select Authentication Method</h3>
         
         {availableMethods.length === 0 ? (
-          <div className=\"no-methods\">
+          <div className="no-methods">
             <p>❌ No authentication methods available for this customer.</p>
             <p>The customer may need to configure their payment preferences.</p>
           </div>
         ) : (
-          <div className=\"auth-methods-grid\">
+          <div className="auth-methods-grid">
             {availableMethods.map(method => (
               <button
                 key={method.id}
                 onClick={() => handleAuthMethodSelection(method.id)}
-                className=\"auth-method-button\"
+                className="auth-method-button"
                 disabled={authenticationInProgress}
               >
-                <div className=\"method-icon\">{method.icon}</div>
-                <div className=\"method-info\">
+                <div className="method-icon">{method.icon}</div>
+                <div className="method-info">
                   <h4>{method.name}</h4>
                   <p>{method.description}</p>
                 </div>
@@ -456,7 +456,7 @@ const EnhancedMerchantDashboard = () => {
           </div>
         )}
 
-        <button onClick={resetTransaction} className=\"secondary-button\">
+        <button onClick={resetTransaction} className="secondary-button">
           Start New Transaction
         </button>
       </div>
@@ -464,7 +464,7 @@ const EnhancedMerchantDashboard = () => {
   }
 
   const renderFaceAuthentication = () => (
-    <div className=\"face-auth-container\">
+    <div className="face-auth-container">
       <h3>👤 Face Authentication</h3>
       <p>Please position your face in the camera view for verification</p>
       
@@ -475,10 +475,10 @@ const EnhancedMerchantDashboard = () => {
         disabled={authenticationInProgress}
       />
 
-      <div className=\"auth-controls\">
+      <div className="auth-controls">
         <button 
           onClick={() => setCurrentStep('auth-method-selection')}
-          className=\"secondary-button\"
+          className="secondary-button"
           disabled={authenticationInProgress}
         >
           Back to Auth Methods
@@ -488,11 +488,11 @@ const EnhancedMerchantDashboard = () => {
   )
 
   const renderPaymentSuccess = () => (
-    <div className=\"success-container\">
-      <div className=\"success-icon\">✅</div>
+    <div className="success-container">
+      <div className="success-icon">✅</div>
       <h2>Payment Authorized Successfully!</h2>
       
-      <div className=\"transaction-details\">
+      <div className="transaction-details">
         <h4>Transaction Details:</h4>
         <p><strong>Customer:</strong> {customerData?.email}</p>
         <p><strong>Amount:</strong> {formatCurrency(paymentSession?.amount)}</p>
@@ -500,7 +500,7 @@ const EnhancedMerchantDashboard = () => {
         <p><strong>Date:</strong> {new Date().toLocaleString()}</p>
       </div>
 
-      <button onClick={resetTransaction} className=\"primary-button\">
+      <button onClick={resetTransaction} className="primary-button">
         Process New Payment
       </button>
     </div>
@@ -510,38 +510,38 @@ const EnhancedMerchantDashboard = () => {
   // MAIN RENDER
   // ============================================================================
   return (
-    <div className=\"enhanced-merchant-dashboard\">
-      <div className=\"dashboard-container\">
+    <div className="enhanced-merchant-dashboard">
+      <div className="dashboard-container">
         {/* Header */}
-        <header className=\"dashboard-header\">
+        <header className="dashboard-header">
           <h1>🚀 Enhanced FacePay Merchant Terminal</h1>
           <p>Multi-platform biometric payment processing</p>
         </header>
 
         {/* Processing Message */}
         {processingMessage && (
-          <div className=\"processing-message\">
-            <div className=\"spinner\"></div>
+          <div className="processing-message">
+            <div className="spinner"></div>
             {processingMessage}
           </div>
         )}
 
         {/* Error Messages */}
         {error && (
-          <div className=\"error-message\">
+          <div className="error-message">
             ❌ {error}
           </div>
         )}
 
         {/* Success Messages */}
         {success && (
-          <div className=\"success-message\">
+          <div className="success-message">
             ✅ {success}
           </div>
         )}
 
         {/* Main Content */}
-        <main className=\"dashboard-content\">
+        <main className="dashboard-content">
           {currentStep === 'customer-lookup' && renderCustomerLookup()}
           {currentStep === 'auth-method-selection' && renderAuthMethodSelection()}
           {currentStep === 'face-authentication' && renderFaceAuthentication()}
@@ -549,7 +549,7 @@ const EnhancedMerchantDashboard = () => {
         </main>
 
         {/* Footer */}
-        <footer className=\"dashboard-footer\">
+        <footer className="dashboard-footer">
           <p>Powered by Enhanced FacePay System</p>
           <p>Secure • Multi-platform • Biometric</p>
         </footer>
