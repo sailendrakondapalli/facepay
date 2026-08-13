@@ -14,6 +14,7 @@ export function MerchantDashboard() {
 
   // Terminal state
   const [terminalActive, setTerminalActive] = useState(false)
+  const [verificationMethod, setVerificationMethod] = useState(null) // NEW: Track merchant's choice
   const [scanning, setScanning] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [amount, setAmount] = useState('')
@@ -63,9 +64,17 @@ export function MerchantDashboard() {
     }
   }
 
-  function openTerminal() {
+  function openTerminal(method = 'face') {
     setTerminalActive(true)
-    setScanning(true)
+    setVerificationMethod(method)
+    
+    if (method === 'face') {
+      setScanning(true)
+    } else if (method === 'device') {
+      // For device biometric, we'll need customer to enter their details first
+      setScanning(false)
+    }
+    
     setSelectedCustomer(null)
     setAmount('')
     setConfirming(false)
@@ -78,6 +87,7 @@ export function MerchantDashboard() {
 
   function closeTerminal() {
     setTerminalActive(false)
+    setVerificationMethod(null)
     setScanning(false)
     setSelectedCustomer(null)
     setAmount('')
@@ -271,12 +281,226 @@ export function MerchantDashboard() {
             console.log('WebAuthn failed, falling back to face-only payment:', webauthnError.message)
             setVerificationError('Completing payment with face verification...')
             await processPayment(result.verificationToken, null, 'FACE_ONLY')
-          }
         } else {
           // Customer doesn't have WebAuthn - use face-only
           console.log('✅ Face-only verification (no device biometric registered)')
           await processPayment(result.verificationToken, null, 'FACE_ONLY')
         }
+        
+      } catch (webauthnError) {
+        console.error('WebAuthn authorization failed:', webauthnError)
+        setVerificationError(`Device biometric authorization failed: ${webauthnError.message}`)
+        setProcessing(false)
+        setPaymentLock(false)
+        return
+      }
+      
+    } catch (error) {
+      console.error('Verification error:', error)
+      setVerificationError(`Verification failed: ${error.message}`)
+      setProcessing(false)
+      setPaymentLock(false) // Release lock on error
+    }
+  }
+
+  async function handleDeviceBiometricAuth() {
+    setProcessing(true)
+    setVerificationError(null)
+    
+    try {
+      // Import WebAuthn function
+      const { authenticateWebAuthn } = await import('../lib/webauthn.js')
+      
+      // For device biometric mode, we need customer to identify themselves first
+      const customerInput = window.prompt(
+        'Customer Identification Required:\n\n' +
+        'Please ask the customer to enter their:\n' +
+        '• Email address\n' +
+        '• OR FacePay ID\n' +
+        '\nThis will be verified with their device biometric.'
+      )
+      
+      if (!customerInput) {
+        setProcessing(false)
+        return
+      }
+      
+      // Look up customer by email or FacePay ID
+      let customerProfile = null
+      
+      // Try to find customer by email first
+      const { data: profileByEmail } = await supabase
+        .from('profiles')
+        .select('*, customer_profiles!inner(*)')
+        .eq('email', customerInput.trim().toLowerCase())
+        .single()
+        
+      if (profileByEmail) {
+        customerProfile = {
+          id: profileByEmail.customer_profiles.id,
+          userId: profileByEmail.id,
+          facepayId: profileByEmail.customer_profiles.facepay_id,
+          fullName: profileByEmail.full_name,
+          email: profileByEmail.email,
+          facepayEnabled: profileByEmail.customer_profiles.facepay_enabled,
+          transactionLimit: profileByEmail.customer_profiles.transaction_limit || 1000
+        }
+      } else {
+        // Try by FacePay ID
+        const { data: profileByFacePayId } = await supabase
+          .from('customer_profiles')
+          .select('*, profiles!inner(*)')
+          .eq('facepay_id', customerInput.trim())
+          .single()
+          
+        if (profileByFacePayId) {
+          customerProfile = {
+            id: profileByFacePayId.id,
+            userId: profileByFacePayId.profiles.id,
+            facepayId: profileByFacePayId.facepay_id,
+            fullName: profileByFacePayId.profiles.full_name,
+            email: profileByFacePayId.profiles.email,
+            facepayEnabled: profileByFacePayId.facepay_enabled,
+            transactionLimit: profileByFacePayId.transaction_limit || 1000
+          }
+        }
+      }
+      
+      if (!customerProfile) {
+        setVerificationError('Customer not found. Please check the email or FacePay ID.')
+        setProcessing(false)
+        return
+      }
+      
+      if (!customerProfile.facepayEnabled) {
+        setVerificationError('FacePay is disabled for this customer.')
+        setProcessing(false)
+        return
+      }
+      
+      // Set customer and prompt for device biometric
+      setSelectedCustomer(customerProfile)
+      setVerificationError('Customer identified. Please authorize payment with device biometric...')
+      
+      // Prompt for WebAuthn authentication
+      const webauthnResult = await authenticateWebAuthn(customerProfile.userId, {
+        amount: parseFloat(amount) || 0,
+        merchantId: merchantProfile.id,
+        timestamp: new Date().toISOString()
+      })
+      
+      if (!webauthnResult.verified) {
+        setVerificationError('Device biometric authorization failed.')
+        setProcessing(false)
+        return
+      }
+      
+      console.log(`✅ Device biometric verified: ${webauthnResult.authenticatorName}`)
+      
+      // Generate verification token and process payment
+      const nonce = generateTransactionNonce()
+      setTransactionNonce(nonce)
+      setVerificationToken('device-biometric-token')
+      
+      await processPayment('device-biometric-token', webauthnResult.authorizationToken, 'DEVICE_BIOMETRIC')
+      
+    } catch (error) {
+      console.error('Device biometric error:', error)
+      setVerificationError(`Device biometric failed: ${error.message}`)
+      setProcessing(false)
+    }
+      )
+      
+      if (!customerInput) {
+        setProcessing(false)
+        return
+      }
+      
+      // Look up customer by email or FacePay ID
+      let customerProfile = null
+      
+      // Try to find customer by email first
+      const { data: profileByEmail } = await supabase
+        .from('profiles')
+        .select('*, customer_profiles!inner(*)')
+        .eq('email', customerInput.trim().toLowerCase())
+        .single()
+        
+      if (profileByEmail) {
+        customerProfile = {
+          id: profileByEmail.customer_profiles.id,
+          userId: profileByEmail.id,
+          facepayId: profileByEmail.customer_profiles.facepay_id,
+          fullName: profileByEmail.full_name,
+          email: profileByEmail.email,
+          facepayEnabled: profileByEmail.customer_profiles.facepay_enabled,
+          transactionLimit: profileByEmail.customer_profiles.transaction_limit || 1000
+        }
+      } else {
+        // Try by FacePay ID
+        const { data: profileByFacePayId } = await supabase
+          .from('customer_profiles')
+          .select('*, profiles!inner(*)')
+          .eq('facepay_id', customerInput.trim())
+          .single()
+          
+        if (profileByFacePayId) {
+          customerProfile = {
+            id: profileByFacePayId.id,
+            userId: profileByFacePayId.profiles.id,
+            facepayId: profileByFacePayId.facepay_id,
+            fullName: profileByFacePayId.profiles.full_name,
+            email: profileByFacePayId.profiles.email,
+            facepayEnabled: profileByFacePayId.facepay_enabled,
+            transactionLimit: profileByFacePayId.transaction_limit || 1000
+          }
+        }
+      }
+      
+      if (!customerProfile) {
+        setVerificationError('Customer not found. Please check the email or FacePay ID.')
+        setProcessing(false)
+        return
+      }
+      
+      if (!customerProfile.facepayEnabled) {
+        setVerificationError('FacePay is disabled for this customer.')
+        setProcessing(false)
+        return
+      }
+      
+      // Set customer and prompt for device biometric
+      setSelectedCustomer(customerProfile)
+      setVerificationError('Customer identified. Please authorize payment with device biometric...')
+      
+      // Prompt for WebAuthn authentication
+      const webauthnResult = await authenticateWebAuthn(customerProfile.userId, {
+        amount: parseFloat(amount) || 0,
+        merchantId: merchantProfile.id,
+        timestamp: new Date().toISOString()
+      })
+      
+      if (!webauthnResult.verified) {
+        setVerificationError('Device biometric authorization failed.')
+        setProcessing(false)
+        return
+      }
+      
+      console.log(`✅ Device biometric verified: ${webauthnResult.authenticatorName}`)
+      
+      // Generate verification token and process payment
+      const nonce = generateTransactionNonce()
+      setTransactionNonce(nonce)
+      setVerificationToken('device-biometric-token')
+      
+      await processPayment('device-biometric-token', webauthnResult.authorizationToken, 'DEVICE_BIOMETRIC')
+      
+    } catch (error) {
+      console.error('Device biometric error:', error)
+      setVerificationError(`Device biometric failed: ${error.message}`)
+      setProcessing(false)
+    }
+  }
         
       } catch (webauthnError) {
         console.error('WebAuthn authorization failed:', webauthnError)
@@ -413,6 +637,60 @@ export function MerchantDashboard() {
                 )}
               </p>
             </div>
+          </div>
+        ) : verificationMethod === 'device' && !selectedCustomer ? (
+          <div className="terminal-device-auth animate-in">
+            <h2>Device Biometric Payment</h2>
+            <p className="text-muted">Direct device biometric authentication</p>
+            
+            <div className="device-auth-info">
+              <div className="info-icon">🔐</div>
+              <h3>Customer will use:</h3>
+              <ul>
+                <li>Windows Hello</li>
+                <li>Touch ID / Face ID</li>
+                <li>Fingerprint sensor</li>
+              </ul>
+            </div>
+            
+            {verificationError && (
+              <div className="alert alert-error" style={{marginBottom: '1rem'}}>
+                {verificationError}
+              </div>
+            )}
+            
+            <div className="amount-input">
+              <label className="form-label">Enter Amount</label>
+              <div className="currency-input">
+                <span className="currency-symbol">₹</span>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+            
+            <button 
+              onClick={handleDeviceBiometricAuth} 
+              className="btn btn-primary btn-full btn-lg" 
+              disabled={!amount || parseFloat(amount) <= 0 || processing}
+            >
+              {processing ? (
+                <>
+                  <span className="spinner" />
+                  Authenticating...
+                </>
+              ) : (
+                'Start Device Biometric Payment'
+              )}
+            </button>
+            
+            <button onClick={() => { setAmount(''); closeTerminal(); }} className="btn btn-ghost btn-full">
+              Cancel
+            </button>
           </div>
         ) : confirming ? (
           <div className="terminal-confirm animate-in">
@@ -589,9 +867,23 @@ export function MerchantDashboard() {
           <p className="text-muted">{merchantProfile?.business_name}</p>
         </div>
 
-        <button onClick={openTerminal} className="btn-scan-customer">
-          SCAN CUSTOMER
-        </button>
+        <div className="payment-methods">
+          <button onClick={() => openTerminal('face')} className="btn-scan-customer">
+            <div className="method-icon">👤</div>
+            <div className="method-text">
+              <strong>SCAN CUSTOMER FACE</strong>
+              <span>Face recognition identification</span>
+            </div>
+          </button>
+          
+          <button onClick={() => openTerminal('device')} className="btn-scan-customer btn-device-biometric">
+            <div className="method-icon">🔐</div>
+            <div className="method-text">
+              <strong>DEVICE BIOMETRIC</strong>
+              <span>Fingerprint / Windows Hello / Touch ID</span>
+            </div>
+          </button>
+        </div>
 
         <div className="dashboard-cards">
           <div className="dash-card">

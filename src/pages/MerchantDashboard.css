@@ -310,3 +310,115 @@
 .alert-error {
   animation: shake 0.5s;
 }
+
+/* Payment Methods Selection */
+.payment-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.btn-scan-customer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, var(--primary-color) 0%, #1976d2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(25, 118, 210, 0.3);
+}
+
+.btn-scan-customer:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(25, 118, 210, 0.4);
+}
+
+.btn-device-biometric {
+  background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+}
+
+.btn-device-biometric:hover {
+  box-shadow: 0 6px 25px rgba(76, 175, 80, 0.4);
+}
+
+.method-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.method-text {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.method-text strong {
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.method-text span {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Device Authentication Terminal */
+.terminal-device-auth {
+  text-align: center;
+}
+
+.device-auth-info {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  padding: 2rem;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.info-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.device-auth-info h3 {
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.device-auth-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.device-auth-info li {
+  padding: 0.5rem;
+  background: white;
+  margin: 0.5rem 0;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .payment-methods {
+    grid-template-columns: 1fr;
+  }
+  
+  .method-text strong {
+    font-size: 1rem;
+  }
+  
+  .method-text span {
+    font-size: 0.8rem;
+  }
+}
