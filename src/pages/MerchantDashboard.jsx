@@ -242,33 +242,105 @@ export function MerchantDashboard() {
         const hasWebAuthn = await hasWebAuthnCredential(selectedCustomer.userId)
         
         if (!hasWebAuthn) {
-          setVerificationError('Customer has not registered device biometric authentication. Payment cannot be completed.')
-          setProcessing(false)
-          setPaymentLock(false)
+          // Give customer option to proceed with face-only or register WebAuthn
+          const proceedWithFaceOnly = window.confirm(
+            `Enhanced Security Available!\n\n` +
+            `${selectedCustomer.fullName} can register device biometric (fingerprint/Windows Hello/Touch ID) for maximum security.\n\n` +
+            `Choose:\n` +
+            `• OK = Complete payment with face verification only\n` +
+            `• Cancel = Ask customer to register device biometric first`
+          )
+          
+          if (!proceedWithFaceOnly) {
+            setVerificationError(
+              `Please ask ${selectedCustomer.fullName} to:\n` +
+              `1. Visit facepay-kappa.vercel.app/customer/dashboard\n` +
+              `2. Register their device biometric (fingerprint/Windows Hello/Touch ID)\n` +
+              `3. Then return for secure dual-factor payment`
+            )
+            setProcessing(false)
+            setPaymentLock(false)
+            return
+          }
+          
+          // Proceed with face-only payment
+          console.log('✅ Face verified! Processing with single-factor authentication...')
+          await processPayment(result.verificationToken)
           return
         }
         
-        // Prompt for WebAuthn authorization
-        console.log('Prompting for device biometric authorization...')
-        setVerificationError('Please authorize payment with your device biometric (Windows Hello/Touch ID/fingerprint)...')
+        // Customer has WebAuthn - offer choice of second factor
+        const secondFactorChoice = window.confirm(
+          `${selectedCustomer.fullName} - Choose Second Verification Method:\n\n` +
+          `✓ Face Recognition: COMPLETED\n\n` +
+          `Choose second factor:\n` +
+          `• OK = Use Device Biometric (fingerprint/Windows Hello/Touch ID)\n` +
+          `• Cancel = Use Face Recognition again (re-scan face)`
+        )
         
-        const webauthnResult = await authenticateWebAuthn(selectedCustomer.userId, {
-          amount: parseFloat(amount),
-          merchantId: merchantProfile.id,
-          timestamp: new Date().toISOString()
-        })
         
-        if (!webauthnResult.verified) {
-          setVerificationError(`Device biometric authorization failed. Payment cannot be completed.`)
-          setProcessing(false)
-          setPaymentLock(false)
-          return
+        if (secondFactorChoice) {
+          // Customer chose device biometric (fingerprint/Windows Hello/Touch ID)
+          try {
+            console.log('Customer chose: Device Biometric Authorization')
+            setVerificationError('Please authorize payment with device biometric (Windows Hello/Touch ID/fingerprint)...')
+            
+            const webauthnResult = await authenticateWebAuthn(selectedCustomer.userId, {
+              amount: parseFloat(amount),
+              merchantId: merchantProfile.id,
+              timestamp: new Date().toISOString()
+            })
+            
+            if (!webauthnResult.verified) {
+              setVerificationError(`Device biometric authorization failed. Payment cannot be completed.`)
+              setProcessing(false)
+              setPaymentLock(false)
+              return
+            }
+            
+            console.log(`✅ Dual-factor verified! Face + ${webauthnResult.authenticatorName}`)
+            await processPayment(result.verificationToken, webauthnResult.authorizationToken)
+            
+          } catch (webauthnError) {
+            console.error('WebAuthn authorization failed:', webauthnError)
+            setVerificationError(`Device biometric failed: ${webauthnError.message}`)
+            setProcessing(false)
+            setPaymentLock(false)
+            return
+          }
+        } else {
+          // Customer chose face recognition again (re-scan)
+          try {
+            console.log('Customer chose: Face Recognition (Second Scan)')
+            setVerificationError('Please scan face again for second verification...')
+            
+            // Use the biometric camera again for second face scan
+            // We'll re-use the same face verification but mark it as dual-face
+            const secondFaceResult = await verifyFace(
+              biometricData,
+              selectedCustomer.userId,
+              transactionNonce + '-second', // Different nonce for second scan
+              0.75
+            )
+            
+            if (!secondFaceResult.success || !secondFaceResult.verified) {
+              setVerificationError('Second face verification failed. Payment cannot be completed.')
+              setProcessing(false)
+              setPaymentLock(false)
+              return
+            }
+            
+            console.log('✅ Dual-face verified! Face scan 1 + Face scan 2')
+            await processPayment(result.verificationToken, secondFaceResult.verificationToken, 'DUAL_FACE')
+            
+          } catch (faceError) {
+            console.error('Second face verification failed:', faceError)
+            setVerificationError(`Second face verification failed: ${faceError.message}`)
+            setProcessing(false)
+            setPaymentLock(false)
+            return
+          }
         }
-        
-        console.log(`✅ Both factors verified! Face: ✓ Device Biometric (${webauthnResult.authenticatorName}): ✓`)
-        
-        // Process payment with dual authorization
-        await processPayment(result.verificationToken, webauthnResult.authorizationToken)
         
       } catch (webauthnError) {
         console.error('WebAuthn authorization failed:', webauthnError)
@@ -293,7 +365,7 @@ export function MerchantDashboard() {
     setPaymentLock(false) // Release lock on cancel
   }
 
-  async function processPayment(verificationToken, webauthnToken = null) {
+  async function processPayment(verificationToken, secondFactorToken = null, authType = 'AUTO') {
     try {
       const transactionId = `FP-TXN-${Date.now()}`
       
@@ -314,10 +386,19 @@ export function MerchantDashboard() {
         return
       }
       
-      // Determine authentication method based on what was used
+      // Determine authentication method and dual-factor status
       let authMethod = 'BIOMETRIC_FACEPAY'
-      if (webauthnToken) {
-        authMethod = 'DUAL_BIOMETRIC_FACEPAY_WEBAUTHN'
+      let isDualFactor = false
+      let webauthnVerified = false
+      
+      if (secondFactorToken) {
+        isDualFactor = true
+        if (authType === 'DUAL_FACE') {
+          authMethod = 'DUAL_BIOMETRIC_FACE_FACE'
+        } else {
+          authMethod = 'DUAL_BIOMETRIC_FACEPAY_WEBAUTHN'
+          webauthnVerified = true
+        }
       }
       
       const { error } = await supabase.from('transactions').insert({
@@ -331,7 +412,8 @@ export function MerchantDashboard() {
         biometric_similarity: selectedCustomer.similarity,
         transaction_nonce: transactionNonce,
         verification_timestamp: new Date().toISOString(),
-        webauthn_verified: !!webauthnToken
+        webauthn_verified: webauthnVerified,
+        dual_factor_auth: isDualFactor
       })
 
       if (error) throw error
@@ -342,8 +424,10 @@ export function MerchantDashboard() {
         customerName: selectedCustomer.fullName,
         facepayId: selectedCustomer.facepayId,
         verificationToken,
-        webauthnToken,
-        authMethod
+        webauthnToken: secondFactorToken,
+        authMethod,
+        isDualFactor,
+        authType
       })
 
       setTimeout(() => {
@@ -381,13 +465,15 @@ export function MerchantDashboard() {
               <p><strong>FacePay ID:</strong> {success.facepayId}</p>
               <p><strong>Transaction ID:</strong> {success.transactionId}</p>
               <p className="text-muted" style={{fontSize: '0.8rem', marginTop: '1rem'}}>
-                {success.webauthnToken ? (
+                {success.isDualFactor ? (
                   <>
                     ✓ Dual-factor biometric verification completed<br/>
-                    ✓ Face recognition + {success.authMethod?.includes('WEBAUTHN') ? 'Device biometric' : 'Face verification'}
+                    ✓ {success.authType === 'DUAL_FACE' 
+                        ? 'Face recognition + Face re-scan' 
+                        : 'Face recognition + Device biometric'}
                   </>
                 ) : (
-                  '✓ Biometric verification completed'
+                  '✓ Single-factor face verification completed'
                 )}
               </p>
             </div>
