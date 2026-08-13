@@ -376,8 +376,35 @@ export function MerchantDashboard() {
       }
       
       if (!customerProfile.facepayEnabled) {
-        setVerificationError('❌ FacePay is disabled for this customer.')
+        setVerificationError(`❌ FacePay is disabled for ${customerProfile.fullName}.\n\nWould you like to enable it now?\n\nClick "Try Again" to enable FacePay for this customer.`)
         setProcessing(false)
+        
+        // Auto-enable FacePay for this customer after 3 seconds
+        setTimeout(async () => {
+          try {
+            setVerificationError('🔄 Enabling FacePay for this customer...')
+            
+            const { error } = await supabase
+              .from('customer_profiles')
+              .update({ 
+                facepay_enabled: true,
+                transaction_limit: 10000,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', customerProfile.id)
+            
+            if (error) {
+              setVerificationError(`❌ Failed to enable FacePay: ${error.message}`)
+            } else {
+              setVerificationError(`✅ FacePay enabled for ${customerProfile.fullName}!\n\nClick "Try Again" to continue with payment.`)
+              customerProfile.facepayEnabled = true
+              customerProfile.transactionLimit = 10000
+            }
+          } catch (err) {
+            setVerificationError(`❌ Error enabling FacePay: ${err.message}`)
+          }
+        }, 3000)
+        
         return
       }
 
@@ -650,6 +677,17 @@ export function MerchantDashboard() {
                 'Detect & Authenticate'
               )}
             </button>
+            
+            {verificationError && !processing && (
+              <button 
+                onClick={handleDeviceBiometricAuth} 
+                className="btn btn-accent btn-full" 
+                disabled={!amount || parseFloat(amount) <= 0}
+                style={{marginTop: '0.5rem'}}
+              >
+                Try Again
+              </button>
+            )}
             
             <button onClick={() => { setAmount(''); closeTerminal(); }} className="btn btn-ghost btn-full">
               Cancel
