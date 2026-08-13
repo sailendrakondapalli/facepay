@@ -315,10 +315,11 @@ export function MerchantDashboard() {
       // For device biometric mode, we need customer to identify themselves first
       const customerInput = window.prompt(
         'Customer Identification Required:\n\n' +
-        'Please ask the customer to enter their:\n' +
-        '• Email address\n' +
-        '• OR FacePay ID\n' +
-        '\nSystem will check available biometric methods.'
+        'Please ask the customer to enter their EMAIL ADDRESS:\n' +
+        '• Example: user@gmail.com\n' +
+        '• Must be exact email used to register\n' +
+        '\nSystem will then check their biometric methods.\n\n' +
+        'Note: FacePay ID lookup is also supported'
       )
       
       if (!customerInput) {
@@ -418,15 +419,54 @@ export function MerchantDashboard() {
         return
       }
       
-      // CRITICAL: Validate customerProfile.id exists
+      // If customerProfile exists but lacks an ID, try to fix it
+      if (!customerProfile.id && customerProfile.userId) {
+        console.log('Customer profile missing ID, attempting to create customer_profiles record...')
+        setVerificationError('🔄 Setting up customer profile...')
+        
+        try {
+          const { data: newCustomerProfile, error: createError } = await supabase
+            .from('customer_profiles')
+            .insert({
+              user_id: customerProfile.userId,
+              facepay_id: `FP-${Date.now()}`,
+              facepay_enabled: false,
+              transaction_limit: 10000
+            })
+            .select()
+            .single()
+            
+          if (createError) {
+            console.error('Failed to create customer profile:', createError)
+            setVerificationError('❌ Failed to create customer profile. Please contact support.')
+            setProcessing(false)
+            return
+          }
+          
+          // Update customerProfile with the new ID
+          customerProfile.id = newCustomerProfile.id
+          customerProfile.facepayId = newCustomerProfile.facepay_id
+          customerProfile.facepayEnabled = newCustomerProfile.facepay_enabled
+          customerProfile.transactionLimit = newCustomerProfile.transaction_limit
+          
+          console.log('Successfully created customer profile:', customerProfile)
+        } catch (createErr) {
+          console.error('Exception creating customer profile:', createErr)
+          setVerificationError('❌ Error creating customer profile. Please contact support.')
+          setProcessing(false)
+          return
+        }
+      }
+      
+      // Final validation - customer profile must have ID
       if (!customerProfile.id) {
-        console.error('Customer profile missing ID:', customerProfile)
+        console.error('Customer profile still missing ID after all attempts:', customerProfile)
         setVerificationError('❌ Customer profile data incomplete. Please contact support.')
         setProcessing(false)
         return
       }
       
-      console.log('Customer profile loaded:', { 
+      console.log('Customer profile validated:', { 
         id: customerProfile.id, 
         userId: customerProfile.userId, 
         facepayEnabled: customerProfile.facepayEnabled 
