@@ -309,6 +309,14 @@ export function MerchantDashboard() {
     setVerificationError(null)
     
     try {
+      // If we already have a selected customer (from auto-enable flow), 
+      // skip customer lookup and go directly to biometric detection
+      if (selectedCustomer && selectedCustomer.facepayEnabled) {
+        console.log('Using already selected customer for biometric detection:', selectedCustomer.fullName)
+        await proceedWithBiometricDetection(selectedCustomer)
+        return
+      }
+      
       // Import WebAuthn function
       const { authenticateWebAuthn, hasWebAuthnCredential } = await import('../lib/webauthn.js')
       
@@ -519,7 +527,8 @@ export function MerchantDashboard() {
               setVerificationError(`✅ FacePay enabled for ${customerProfile.fullName}!\n\nAutomatically continuing with biometric detection...`)
               
               setTimeout(() => {
-                // Skip the disabled check and continue directly with biometric detection
+                // Clear the verification error and continue with biometric detection
+                setVerificationError(null)
                 proceedWithBiometricDetection(customerProfile)
               }, 2000)
             }
@@ -553,6 +562,7 @@ export function MerchantDashboard() {
       const { authenticateWebAuthn, hasWebAuthnCredential } = await import('../lib/webauthn.js')
 
       setSelectedCustomer(customerProfile)
+      setProcessing(true) // Set processing to true while checking methods
       
       // Check what biometric methods this customer has available
       const [hasDeviceBiometric, hasFaceRecognition] = await Promise.all([
@@ -809,16 +819,24 @@ export function MerchantDashboard() {
               {processing ? (
                 <>
                   <span className="spinner" />
-                  Detecting Methods...
+                  {selectedCustomer ? 'Detecting Methods...' : 'Looking Up Customer...'}
                 </>
               ) : (
-                'Detect & Authenticate'
+                selectedCustomer ? 'Continue with Biometrics' : 'Detect & Authenticate'
               )}
             </button>
             
             {verificationError && !processing && (
               <button 
-                onClick={handleDeviceBiometricAuth} 
+                onClick={() => {
+                  // If we already have a selected customer after auto-enabling FacePay, 
+                  // continue with biometric detection instead of starting over
+                  if (selectedCustomer && selectedCustomer.facepayEnabled) {
+                    proceedWithBiometricDetection(selectedCustomer)
+                  } else {
+                    handleDeviceBiometricAuth()
+                  }
+                }} 
                 className="btn btn-accent btn-full" 
                 disabled={!amount || parseFloat(amount) <= 0}
                 style={{marginTop: '0.5rem'}}
@@ -830,6 +848,20 @@ export function MerchantDashboard() {
             <button onClick={() => { setAmount(''); closeTerminal(); }} className="btn btn-ghost btn-full">
               Cancel
             </button>
+            
+            {selectedCustomer && (
+              <button 
+                onClick={() => { 
+                  setSelectedCustomer(null); 
+                  setVerificationError(null); 
+                  setProcessing(false); 
+                }} 
+                className="btn btn-ghost btn-full" 
+                style={{marginTop: '0.5rem'}}
+              >
+                Try Different Customer
+              </button>
+            )}
           </div>
         ) : confirming ? (
           <div className="terminal-confirm animate-in">
