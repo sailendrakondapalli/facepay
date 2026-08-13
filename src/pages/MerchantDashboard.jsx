@@ -332,16 +332,17 @@ export function MerchantDashboard() {
       let customerProfile = null
       
       // Try to find customer by email first
-      const { data: profileByEmail } = await supabase
+      const { data: profileByEmail, error: emailError } = await supabase
         .from('profiles')
         .select('*, customer_profiles!inner(*)')
         .eq('email', customerInput.trim().toLowerCase())
         .single()
         
-      if (profileByEmail) {
+      if (profileByEmail && !emailError) {
+        console.log('Found customer by email:', profileByEmail)
         customerProfile = {
-          id: profileByEmail.customer_profiles.id,
-          userId: profileByEmail.id,
+          id: profileByEmail.customer_profiles.id, // This should be the customer_profiles.id (UUID)
+          userId: profileByEmail.id, // This is the profiles.id (UUID) 
           facepayId: profileByEmail.customer_profiles.facepay_id,
           fullName: profileByEmail.full_name,
           email: profileByEmail.email,
@@ -350,21 +351,63 @@ export function MerchantDashboard() {
         }
       } else {
         // Try by FacePay ID
-        const { data: profileByFacePayId } = await supabase
+        const { data: profileByFacePayId, error: facepayError } = await supabase
           .from('customer_profiles')
           .select('*, profiles!inner(*)')
           .eq('facepay_id', customerInput.trim())
           .single()
           
-        if (profileByFacePayId) {
+        if (profileByFacePayId && !facepayError) {
+          console.log('Found customer by FacePay ID:', profileByFacePayId)
           customerProfile = {
-            id: profileByFacePayId.id,
-            userId: profileByFacePayId.profiles.id,
+            id: profileByFacePayId.id, // This should be the customer_profiles.id (UUID)
+            userId: profileByFacePayId.profiles.id, // This is the profiles.id (UUID)
             facepayId: profileByFacePayId.facepay_id,
             fullName: profileByFacePayId.profiles.full_name,
             email: profileByFacePayId.profiles.email,
             facepayEnabled: profileByFacePayId.facepay_enabled,
             transactionLimit: profileByFacePayId.transaction_limit || 1000
+          }
+        } else {
+          // As fallback, try to find just the profile (without customer_profiles)
+          const { data: basicProfile, error: basicError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', customerInput.trim().toLowerCase())
+            .eq('role', 'customer')
+            .single()
+            
+          if (basicProfile && !basicError) {
+            console.log('Found basic profile, creating customer profile:', basicProfile)
+            
+            // Create customer_profiles record for this user
+            const { data: newCustomerProfile, error: createError } = await supabase
+              .from('customer_profiles')
+              .insert({
+                user_id: basicProfile.id,
+                facepay_id: `FP-${Date.now()}`,
+                facepay_enabled: false, // Start disabled, will be enabled if needed
+                transaction_limit: 10000
+              })
+              .select()
+              .single()
+              
+            if (newCustomerProfile && !createError) {
+              customerProfile = {
+                id: newCustomerProfile.id,
+                userId: basicProfile.id,
+                facepayId: newCustomerProfile.facepay_id,
+                fullName: basicProfile.full_name,
+                email: basicProfile.email,
+                facepayEnabled: newCustomerProfile.facepay_enabled,
+                transactionLimit: newCustomerProfile.transaction_limit
+              }
+              console.log('Created new customer profile:', customerProfile)
+            } else {
+              console.error('Failed to create customer profile:', createError)
+            }
+          } else {
+            console.error('Customer lookup errors:', { emailError, facepayError, basicError })
           }
         }
       }
@@ -375,6 +418,20 @@ export function MerchantDashboard() {
         return
       }
       
+      // CRITICAL: Validate customerProfile.id exists
+      if (!customerProfile.id) {
+        console.error('Customer profile missing ID:', customerProfile)
+        setVerificationError('❌ Customer profile data incomplete. Please contact support.')
+        setProcessing(false)
+        return
+      }
+      
+      console.log('Customer profile loaded:', { 
+        id: customerProfile.id, 
+        userId: customerProfile.userId, 
+        facepayEnabled: customerProfile.facepayEnabled 
+      })
+      
       if (!customerProfile.facepayEnabled) {
         setVerificationError(`❌ FacePay is disabled for ${customerProfile.fullName}.\n\nWould you like to enable it now?\n\nClick "Try Again" to enable FacePay for this customer.`)
         setProcessing(false)
@@ -384,16 +441,23 @@ export function MerchantDashboard() {
           try {
             setVerificationError('🔄 Enabling FacePay for this customer...')
             
+            console.log('Attempting to enable FacePay for customer ID:', customerProfile.id)
+            
+            if (!customerProfile.id) {
+              setVerificationError('❌ Cannot enable FacePay: Missing customer ID')
+              return
+            }
+            
             const { error } = await supabase
               .from('customer_profiles')
               .update({ 
                 facepay_enabled: true,
-                transaction_limit: 10000,
-                updated_at: new Date().toISOString()
+                transaction_limit: 10000
               })
               .eq('id', customerProfile.id)
             
             if (error) {
+              console.error('Database update error:', error)
               setVerificationError(`❌ Failed to enable FacePay: ${error.message}`)
             } else {
               setVerificationError(`✅ FacePay enabled for ${customerProfile.fullName}!\n\nClick "Try Again" to continue with payment.`)
@@ -401,6 +465,7 @@ export function MerchantDashboard() {
               customerProfile.transactionLimit = 10000
             }
           } catch (err) {
+            console.error('Exception during FacePay enable:', err)
             setVerificationError(`❌ Error enabling FacePay: ${err.message}`)
           }
         }, 3000)

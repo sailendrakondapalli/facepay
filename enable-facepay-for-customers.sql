@@ -3,14 +3,12 @@
 
 -- Update all customer profiles to enable FacePay
 UPDATE customer_profiles 
-SET facepay_enabled = true,
-    updated_at = now()
+SET facepay_enabled = true
 WHERE facepay_enabled = false;
 
 -- Also ensure transaction limits are set
 UPDATE customer_profiles 
-SET transaction_limit = 10000,
-    updated_at = now()
+SET transaction_limit = 10000
 WHERE transaction_limit IS NULL OR transaction_limit = 0;
 
 -- Check the results
