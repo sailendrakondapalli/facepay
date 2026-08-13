@@ -97,9 +97,9 @@ export function MerchantDashboard() {
     try {
       // Call identify-face Edge Function (1:N matching)
       console.log('Calling identifyFace with biometric data:', { quality: biometricData.quality, embeddingLength: biometricData.embedding?.length })
-      const result = await identifyFace(biometricData, 0.80) // Lowered threshold to 80% for better recognition
+      const result = await identifyFace(biometricData, 0.75) // Lowered threshold to 75% to accommodate varying conditions
       console.log('Identification result:', result)
-      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.80)
+      console.log('⚠️ SECURITY CHECK - Similarity score:', result.similarity, '| Threshold:', 0.75)
       
       // CRITICAL: Strict validation to prevent false positives
       if (!result.success) {
@@ -109,11 +109,11 @@ export function MerchantDashboard() {
         return
       }
       
-      if (!result.identified || result.similarity < 0.80) {
+      if (!result.identified || result.similarity < 0.75) {
         // Clear "NOT REGISTERED" message - user not enrolled or similarity too low
         setIdentificationError(
           result.similarity > 0 
-            ? `❌ UNREGISTERED PERSON\n\nFace similarity: ${Math.round(result.similarity * 100)}%\nMinimum required: 80%\n\nThis person is not registered in the system.`
+            ? `❌ UNREGISTERED PERSON\n\nFace similarity: ${Math.round(result.similarity * 100)}%\nMinimum required: 75%\n\nThis person is not registered in the system.`
             : '❌ UNREGISTERED PERSON\n\nNo matching customer found in database.\n\nPlease register this customer first.'
         )
         setScanning(false)
@@ -217,7 +217,7 @@ export function MerchantDashboard() {
         biometricData,
         selectedCustomer.userId, // Pass user_id for YuNet matching, not customer_profile.id
         transactionNonce,
-        0.80 // Lowered to 80% for better recognition
+        0.75 // Lowered to 75% to accommodate varying conditions
       )
       console.log('Verification result:', result)
       
