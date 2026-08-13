@@ -500,9 +500,28 @@ export function MerchantDashboard() {
               console.error('Database update error:', error)
               setVerificationError(`❌ Failed to enable FacePay: ${error.message}`)
             } else {
-              setVerificationError(`✅ FacePay enabled for ${customerProfile.fullName}!\n\nClick "Try Again" to continue with payment.`)
+              console.log('FacePay enabled successfully, updating customer profile')
+              
+              // Update the customerProfile object with new values
               customerProfile.facepayEnabled = true
               customerProfile.transactionLimit = 10000
+              
+              // Also update the selectedCustomer state if it exists
+              if (selectedCustomer) {
+                setSelectedCustomer({
+                  ...selectedCustomer,
+                  facepayEnabled: true,
+                  transactionLimit: 10000
+                })
+              }
+              
+              // Show success and automatically continue with biometric detection after 2 seconds
+              setVerificationError(`✅ FacePay enabled for ${customerProfile.fullName}!\n\nAutomatically continuing with biometric detection...`)
+              
+              setTimeout(() => {
+                // Skip the disabled check and continue directly with biometric detection
+                proceedWithBiometricDetection(customerProfile)
+              }, 2000)
             }
           } catch (err) {
             console.error('Exception during FacePay enable:', err)
@@ -512,6 +531,26 @@ export function MerchantDashboard() {
         
         return
       }
+
+      // Continue with biometric detection
+      proceedWithBiometricDetection(customerProfile)
+    } catch (error) {
+      console.error('Device biometric error:', error)
+      if (error.name === 'NotAllowedError') {
+        setVerificationError(`❌ Biometric access denied by user.\n\nPlease allow biometric access and try again.`)
+      } else if (error.name === 'NotSupportedError') {
+        setVerificationError(`❌ This device doesn't support biometric authentication.\n\nPlease use face recognition instead.`)
+      } else {
+        setVerificationError(`❌ Device biometric failed: ${error.message}`)
+      }
+      setProcessing(false)
+    }
+  }
+
+  // Helper function to continue with biometric detection after FacePay is enabled
+  async function proceedWithBiometricDetection(customerProfile) {
+    try {
+      const { authenticateWebAuthn, hasWebAuthnCredential } = await import('../lib/webauthn.js')
 
       setSelectedCustomer(customerProfile)
       
@@ -576,14 +615,8 @@ export function MerchantDashboard() {
       }
       
     } catch (error) {
-      console.error('Device biometric error:', error)
-      if (error.name === 'NotAllowedError') {
-        setVerificationError(`❌ Biometric access denied by user.\n\nPlease allow biometric access and try again.`)
-      } else if (error.name === 'NotSupportedError') {
-        setVerificationError(`❌ This device doesn't support biometric authentication.\n\nPlease use face recognition instead.`)
-      } else {
-        setVerificationError(`❌ Device biometric failed: ${error.message}`)
-      }
+      console.error('Biometric detection error:', error)
+      setVerificationError(`❌ Biometric detection failed: ${error.message}`)
       setProcessing(false)
     }
   }

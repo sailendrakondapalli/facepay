@@ -3,14 +3,15 @@
 
 -- Step 1: Insert profile (if it doesn't exist)
 INSERT INTO profiles (id, role, full_name, email, phone)
-VALUES (
+SELECT 
   uuid_generate_v4(),
   'customer',
   'Test Bot Customer',
   'bot@test.com', -- Change this to your test email
   '+1234567890'
-)
-ON CONFLICT (email) DO NOTHING;
+WHERE NOT EXISTS (
+  SELECT 1 FROM profiles WHERE email = 'bot@test.com' -- Change this to match your test email
+);
 
 -- Step 2: Insert customer profile linked to the profile
 INSERT INTO customer_profiles (user_id, facepay_id, facepay_enabled, transaction_limit)
