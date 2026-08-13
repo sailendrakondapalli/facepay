@@ -238,52 +238,16 @@ export function MerchantDashboard() {
         // Import WebAuthn function
         const { authenticateWebAuthn, hasWebAuthnCredential } = await import('../lib/webauthn.js')
         
-        // Check if customer has registered WebAuthn
+        // Check if customer has registered WebAuthn and automatically handle second factor
         const hasWebAuthn = await hasWebAuthnCredential(selectedCustomer.userId)
         
-        if (!hasWebAuthn) {
-          // Give customer option to proceed with face-only or register WebAuthn
-          const proceedWithFaceOnly = window.confirm(
-            `Enhanced Security Available!\n\n` +
-            `${selectedCustomer.fullName} can register device biometric (fingerprint/Windows Hello/Touch ID) for maximum security.\n\n` +
-            `Choose:\n` +
-            `• OK = Complete payment with face verification only\n` +
-            `• Cancel = Ask customer to register device biometric first`
-          )
-          
-          if (!proceedWithFaceOnly) {
-            setVerificationError(
-              `Please ask ${selectedCustomer.fullName} to:\n` +
-              `1. Visit facepay-kappa.vercel.app/customer/dashboard\n` +
-              `2. Register their device biometric (fingerprint/Windows Hello/Touch ID)\n` +
-              `3. Then return for secure dual-factor payment`
-            )
-            setProcessing(false)
-            setPaymentLock(false)
-            return
-          }
-          
-          // Proceed with face-only payment
-          console.log('✅ Face verified! Processing with single-factor authentication...')
-          await processPayment(result.verificationToken)
-          return
-        }
+        console.log(`✅ Face verified! Processing payment for ${selectedCustomer.fullName}...`)
         
-        // Customer has WebAuthn - offer choice of second factor
-        const secondFactorChoice = window.confirm(
-          `${selectedCustomer.fullName} - Choose Second Verification Method:\n\n` +
-          `✓ Face Recognition: COMPLETED\n\n` +
-          `Choose second factor:\n` +
-          `• OK = Use Device Biometric (fingerprint/Windows Hello/Touch ID)\n` +
-          `• Cancel = Use Face Recognition again (re-scan face)`
-        )
-        
-        
-        if (secondFactorChoice) {
-          // Customer chose device biometric (fingerprint/Windows Hello/Touch ID)
+        if (hasWebAuthn) {
+          // Customer has registered device biometric - automatically prompt for it
           try {
-            console.log('Customer chose: Device Biometric Authorization')
-            setVerificationError('Please authorize payment with device biometric (Windows Hello/Touch ID/fingerprint)...')
+            console.log('Auto-prompting for registered device biometric authorization...')
+            setVerificationError('Authorizing payment with registered device biometric...')
             
             const webauthnResult = await authenticateWebAuthn(selectedCustomer.userId, {
               amount: parseFloat(amount),
@@ -292,54 +256,26 @@ export function MerchantDashboard() {
             })
             
             if (!webauthnResult.verified) {
-              setVerificationError(`Device biometric authorization failed. Payment cannot be completed.`)
-              setProcessing(false)
-              setPaymentLock(false)
+              // If WebAuthn fails, fallback to face-only
+              console.log('Device biometric failed, completing with face-only verification')
+              setVerificationError('Device biometric unavailable. Completing with face verification...')
+              await processPayment(result.verificationToken, null, 'FACE_ONLY')
               return
             }
             
             console.log(`✅ Dual-factor verified! Face + ${webauthnResult.authenticatorName}`)
-            await processPayment(result.verificationToken, webauthnResult.authorizationToken)
+            await processPayment(result.verificationToken, webauthnResult.authorizationToken, 'DUAL_WEBAUTHN')
             
           } catch (webauthnError) {
-            console.error('WebAuthn authorization failed:', webauthnError)
-            setVerificationError(`Device biometric failed: ${webauthnError.message}`)
-            setProcessing(false)
-            setPaymentLock(false)
-            return
+            // If WebAuthn fails for any reason, fallback to face-only
+            console.log('WebAuthn failed, falling back to face-only payment:', webauthnError.message)
+            setVerificationError('Completing payment with face verification...')
+            await processPayment(result.verificationToken, null, 'FACE_ONLY')
           }
         } else {
-          // Customer chose face recognition again (re-scan)
-          try {
-            console.log('Customer chose: Face Recognition (Second Scan)')
-            setVerificationError('Please scan face again for second verification...')
-            
-            // Use the biometric camera again for second face scan
-            // We'll re-use the same face verification but mark it as dual-face
-            const secondFaceResult = await verifyFace(
-              biometricData,
-              selectedCustomer.userId,
-              transactionNonce + '-second', // Different nonce for second scan
-              0.75
-            )
-            
-            if (!secondFaceResult.success || !secondFaceResult.verified) {
-              setVerificationError('Second face verification failed. Payment cannot be completed.')
-              setProcessing(false)
-              setPaymentLock(false)
-              return
-            }
-            
-            console.log('✅ Dual-face verified! Face scan 1 + Face scan 2')
-            await processPayment(result.verificationToken, secondFaceResult.verificationToken, 'DUAL_FACE')
-            
-          } catch (faceError) {
-            console.error('Second face verification failed:', faceError)
-            setVerificationError(`Second face verification failed: ${faceError.message}`)
-            setProcessing(false)
-            setPaymentLock(false)
-            return
-          }
+          // Customer doesn't have WebAuthn - use face-only
+          console.log('✅ Face-only verification (no device biometric registered)')
+          await processPayment(result.verificationToken, null, 'FACE_ONLY')
         }
         
       } catch (webauthnError) {
