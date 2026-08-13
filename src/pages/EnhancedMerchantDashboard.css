@@ -1,0 +1,459 @@
+/* Enhanced Merchant Dashboard Styles */
+/* Modern, responsive design for multi-platform biometric payment processing */
+
+.enhanced-merchant-dashboard {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.dashboard-container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+/* ============================================================================
+   HEADER STYLES
+   ============================================================================ */
+
+.dashboard-header {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  padding: 30px;
+  text-align: center;
+}
+
+.dashboard-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+.dashboard-header p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 1.1rem;
+}
+
+/* ============================================================================
+   CONTENT AREA
+   ============================================================================ */
+
+.dashboard-content {
+  padding: 40px;
+}
+
+/* ============================================================================
+   CUSTOMER LOOKUP STYLES
+   ============================================================================ */
+
+.lookup-container {
+  text-align: center;
+}
+
+.lookup-container h2 {
+  color: #333;
+  margin-bottom: 30px;
+  font-size: 1.8rem;
+}
+
+.form-group {
+  margin-bottom: 25px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #555;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 16px;
+  transition: border-color 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4facfe;
+  box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+}
+
+.form-group input:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   BUTTON STYLES
+   ============================================================================ */
+
+.primary-button {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+  border: none;
+  padding: 15px 30px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 200px;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+}
+
+.primary-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondary-button {
+  background: transparent;
+  color: #666;
+  border: 2px solid #e0e0e0;
+  padding: 12px 25px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: #4facfe;
+  color: #4facfe;
+}
+
+/* ============================================================================
+   CAPABILITIES INFO
+   ============================================================================ */
+
+.capabilities-info {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+.capabilities-info h4 {
+  margin: 0 0 15px 0;
+  color: #555;
+  font-size: 1rem;
+}
+
+.capabilities-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.capability-badge {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* ============================================================================
+   AUTH METHOD SELECTION
+   ============================================================================ */
+
+.auth-selection-container {
+  text-align: center;
+}
+
+.customer-info {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+}
+
+.customer-info h3 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.customer-info p {
+  margin: 5px 0;
+  color: #666;
+}
+
+.dual-factor-notice {
+  background: #fff3cd;
+  color: #856404;
+  padding: 10px;
+  border-radius: 5px;
+  font-weight: 600;
+}
+
+.no-methods {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.auth-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin: 30px 0;
+}
+
+.auth-method-button {
+  background: white;
+  border: 3px solid #e0e0e0;
+  border-radius: 15px;
+  padding: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.auth-method-button:hover:not(:disabled) {
+  border-color: #4facfe;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(79, 172, 254, 0.15);
+}
+
+.auth-method-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.method-icon {
+  font-size: 3rem;
+  flex-shrink: 0;
+}
+
+.method-info h4 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.method-info p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* ============================================================================
+   FACE AUTHENTICATION
+   ============================================================================ */
+
+.face-auth-container {
+  text-align: center;
+}
+
+.face-auth-container h3 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.face-auth-container p {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.auth-controls {
+  margin-top: 30px;
+}
+
+/* ============================================================================
+   SUCCESS PAGE
+   ============================================================================ */
+
+.success-container {
+  text-align: center;
+}
+
+.success-icon {
+  font-size: 5rem;
+  margin-bottom: 20px;
+}
+
+.success-container h2 {
+  color: #28a745;
+  margin-bottom: 30px;
+  font-size: 2rem;
+}
+
+.transaction-details {
+  background: #f8f9fa;
+  padding: 25px;
+  border-radius: 10px;
+  margin: 30px 0;
+  text-align: left;
+}
+
+.transaction-details h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+  text-align: center;
+}
+
+.transaction-details p {
+  margin: 8px 0;
+  color: #555;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.transaction-details strong {
+  color: #333;
+}
+
+/* ============================================================================
+   MESSAGE STYLES
+   ============================================================================ */
+
+.processing-message {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 20px;
+  margin: 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-weight: 600;
+}
+
+.error-message {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 15px 20px;
+  margin: 20px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  padding: 15px 20px;
+  margin: 20px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   LOADING SPINNER
+   ============================================================================ */
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e3f2fd;
+  border-top: 2px solid #1565c0;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+
+.dashboard-footer {
+  background: #f8f9fa;
+  color: #666;
+  text-align: center;
+  padding: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.dashboard-footer p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .enhanced-merchant-dashboard {
+    padding: 10px;
+  }
+  
+  .dashboard-header {
+    padding: 20px;
+  }
+  
+  .dashboard-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .dashboard-content {
+    padding: 30px 20px;
+  }
+  
+  .auth-methods-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .auth-method-button {
+    flex-direction: column;
+    text-align: center;
+    gap: 15px;
+  }
+  
+  .transaction-details p {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .dashboard-content {
+    padding: 20px 15px;
+  }
+  
+  .form-group input {
+    padding: 12px;
+  }
+  
+  .primary-button {
+    width: 100%;
+    padding: 12px 20px;
+  }
+}

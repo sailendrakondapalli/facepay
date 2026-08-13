@@ -7,9 +7,11 @@ import { Landing } from './pages/Landing'
 import { CustomerLogin } from './pages/CustomerLogin'
 import { CustomerRegister } from './pages/CustomerRegister'
 import { CustomerDashboard } from './pages/CustomerDashboard'
+import CustomerSecuritySettings from './pages/CustomerSecuritySettings'
 import { MerchantLogin } from './pages/MerchantLogin'
 import { MerchantRegister } from './pages/MerchantRegister'
 import { MerchantDashboard } from './pages/MerchantDashboard'
+import EnhancedMerchantDashboard from './pages/EnhancedMerchantDashboard'
 
 function ProtectedRoute({ children, role }) {
   const { user, profile, loading } = useAuth()
@@ -57,10 +59,26 @@ function AppContent() {
             }
           />
           <Route
+            path="/customer/security"
+            element={
+              <ProtectedRoute role="customer">
+                <CustomerSecuritySettings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/merchant/dashboard"
             element={
               <ProtectedRoute role="merchant">
                 <MerchantDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/merchant/enhanced"
+            element={
+              <ProtectedRoute role="merchant">
+                <EnhancedMerchantDashboard />
               </ProtectedRoute>
             }
           />
